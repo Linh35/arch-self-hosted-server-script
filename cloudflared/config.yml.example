@@ -1,0 +1,23 @@
+# After `cloudflared tunnel create selfhost`, copy this to config.yml
+# (gitignored) and paste the UUID in both places below. The system service
+# reads /etc/cloudflared/config.yml and looks for credentials in
+# /etc/cloudflared/<UUID>.json — so copy both there before enabling it:
+#
+#   sudo cp cloudflared/config.yml /etc/cloudflared/
+#   sudo cp ~/.cloudflared/<UUID>.json /etc/cloudflared/
+
+tunnel: REPLACE_WITH_TUNNEL_UUID
+credentials-file: /etc/cloudflared/REPLACE_WITH_TUNNEL_UUID.json
+
+ingress:
+  - hostname: photos.example.com
+    service: http://localhost:2283
+
+  - hostname: files.example.com
+    service: http://localhost:3923
+
+  - hostname: tv.example.com
+    service: http://localhost:8096
+
+  # Catch-all (required, must be last)
+  - service: http_status:404

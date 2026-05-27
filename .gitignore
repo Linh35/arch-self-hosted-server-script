@@ -1,0 +1,28 @@
+# Secrets and local config
+.env
+**/.env
+!.env.example
+!**/.env.example
+
+# Local data — never commit
+data/
+
+# Cloudflare tunnel credentials and the live config
+cloudflared/*.json
+cloudflared/cert.pem
+cloudflared/config.yml
+
+# Immich's compose is fetched by bootstrap, don't track upstream copies
+compose/immich/docker-compose.yml
+compose/immich/example.env
+
+# Restic / backup state
+.restic-lock
+
+# Editor / OS cruft
+*.swp
+*.swo
+*~
+.DS_Store
+.idea/
+.vscode/

@@ -1,0 +1,22 @@
+services:
+  copyparty:
+    image: copyparty/ac:latest
+    container_name: copyparty
+    restart: unless-stopped
+    user: "${PUID:-1000}:${PGID:-1000}"
+    ports:
+      - "3923:3923"
+    volumes:
+      - ../../data/copyparty/files:/w
+    environment:
+      - TZ=${TZ:-UTC}
+    command:
+      - -p
+      - "3923"
+      - -e2dsa
+      - -e2ts
+      - --daw
+      - -a
+      - "admin:${COPYPARTY_PASSWORD:?Set COPYPARTY_PASSWORD in compose/copyparty/.env}"
+      - -v
+      - "/w::rwmda,admin"
