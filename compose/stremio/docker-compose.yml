@@ -1,0 +1,39 @@
+services:
+  gluetun:
+    image: qmcgaw/gluetun:latest
+    container_name: gluetun
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    ports:
+      # Stremio server HTTP + HTTPS, exposed via gluetun's namespace.
+      - "11470:11470"
+      - "12470:12470"
+    volumes:
+      - ../../data/gluetun:/gluetun
+    environment:
+      - TZ=${TZ:-UTC}
+      - VPN_SERVICE_PROVIDER=${VPN_SERVICE_PROVIDER:?set in .env}
+      - VPN_TYPE=${VPN_TYPE:-wireguard}
+      - WIREGUARD_PRIVATE_KEY=${WIREGUARD_PRIVATE_KEY:-}
+      - WIREGUARD_ADDRESSES=${WIREGUARD_ADDRESSES:-}
+      - OPENVPN_USER=${OPENVPN_USER:-}
+      - OPENVPN_PASSWORD=${OPENVPN_PASSWORD:-}
+      - SERVER_COUNTRIES=${SERVER_COUNTRIES:-}
+      - SERVER_CITIES=${SERVER_CITIES:-}
+      # Allow LAN devices to reach the Stremio server through gluetun.
+      - FIREWALL_OUTBOUND_SUBNETS=${LAN_SUBNETS:-192.168.0.0/16,10.0.0.0/8}
+    restart: unless-stopped
+
+  stremio-server:
+    image: stremio/server:latest
+    container_name: stremio-server
+    network_mode: "service:gluetun"
+    depends_on:
+      - gluetun
+    volumes:
+      - ../../data/stremio:/root/.stremio-server
+    environment:
+      - NO_CORS=1
+    restart: unless-stopped

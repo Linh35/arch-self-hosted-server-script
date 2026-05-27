@@ -21,7 +21,6 @@ log "Installing packages"
 sudo pacman -S --needed --noconfirm \
   podman podman-compose \
   fuse-overlayfs slirp4netns aardvark-dns netavark \
-  rclone fuse3 \
   restic git curl jq wget tar \
   kodi
 
