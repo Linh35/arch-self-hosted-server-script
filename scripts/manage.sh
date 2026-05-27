@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Run docker compose commands across all services in compose/.
+# Wraps podman-compose across all stacks in compose/.
 # Usage:
 #   ./scripts/manage.sh up           start everything
 #   ./scripts/manage.sh down         stop everything
@@ -22,31 +22,31 @@ case "$cmd" in
   up)
     for d in $(services); do
       echo "==> $(basename "$d"): up"
-      (cd "$d" && docker compose up -d)
+      (cd "$d" && podman-compose up -d)
     done
     ;;
   down)
     for d in $(services); do
       echo "==> $(basename "$d"): down"
-      (cd "$d" && docker compose down)
+      (cd "$d" && podman-compose down)
     done
     ;;
   restart)
     for d in $(services); do
       echo "==> $(basename "$d"): restart"
-      (cd "$d" && docker compose restart)
+      (cd "$d" && podman-compose restart)
     done
     ;;
   pull)
     for d in $(services); do
       echo "==> $(basename "$d"): pull"
-      (cd "$d" && docker compose pull)
+      (cd "$d" && podman-compose pull)
     done
     ;;
   ps)
     for d in $(services); do
       echo "==> $(basename "$d")"
-      (cd "$d" && docker compose ps)
+      (cd "$d" && podman-compose ps)
     done
     ;;
   logs)
@@ -56,7 +56,7 @@ case "$cmd" in
       echo "available: $(services | xargs -n1 basename | tr '\n' ' ')" >&2
       exit 1
     fi
-    cd "$COMPOSE_ROOT/$svc" && docker compose logs -f
+    cd "$COMPOSE_ROOT/$svc" && podman-compose logs -f
     ;;
   *)
     echo "usage: $0 {up|down|restart|pull|ps|logs <service>}" >&2

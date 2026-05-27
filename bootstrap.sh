@@ -19,15 +19,19 @@ log() { printf '%s\n' "[bootstrap] $*"; }
 
 log "Installing packages"
 sudo pacman -S --needed --noconfirm \
-  docker docker-compose docker-buildx \
+  podman podman-compose \
+  fuse-overlayfs slirp4netns aardvark-dns netavark \
+  rclone fuse3 \
   restic git curl jq wget tar \
   kodi
 
-log "Enabling docker"
-sudo systemctl enable --now docker
-if ! id -nG "$USER" | grep -qw docker; then
-  sudo usermod -aG docker "$USER"
-  log "Added $USER to docker group. Log out and back in (or run 'newgrp docker') before continuing."
+log "Enabling lingering and rootless podman services"
+sudo loginctl enable-linger "$USER"
+systemctl --user daemon-reload
+systemctl --user enable --now podman.socket
+# Honours `restart:` policies after host reboot for rootless containers.
+if systemctl --user list-unit-files podman-restart.service >/dev/null 2>&1; then
+  systemctl --user enable --now podman-restart.service
 fi
 
 log "Installing cloudflared"

@@ -11,7 +11,7 @@ set -euo pipefail
 #        export B2_ACCOUNT_KEY=...
 #      (or RESTIC_REPOSITORY=/mnt/usb/restic for a local disk)
 #   2. Source it and run `restic init` once.
-#   3. Drop this in cron / systemd timer.
+#   3. Put this in cron or a systemd timer.
 
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 DATA="$HERE/data"
@@ -35,37 +35,33 @@ fi
 mkdir -p "$DUMPS"
 
 immich_db_running() {
-  [[ -n "$(docker compose -f "$HERE/compose/immich/docker-compose.yml" ps -q database 2>/dev/null)" ]]
+  [[ -n "$(podman-compose -f "$HERE/compose/immich/docker-compose.yml" ps -q database 2>/dev/null)" ]]
 }
 
 if immich_db_running; then
   echo "Dumping Immich postgres"
-  docker compose -f "$HERE/compose/immich/docker-compose.yml" \
+  podman-compose -f "$HERE/compose/immich/docker-compose.yml" \
     exec -T database pg_dumpall --clean --if-exists -U postgres \
     | gzip > "$DUMPS/immich-postgres.sql.gz"
 fi
 
-pause_svc() {
-  local svc=$1
-  if [[ -d "$HERE/compose/$svc" ]]; then
-    (cd "$HERE/compose/$svc" && docker compose pause 2>/dev/null) || true
-  fi
+pause_container() {
+  local name=$1
+  podman pause "$name" 2>/dev/null || true
 }
-unpause_svc() {
-  local svc=$1
-  if [[ -d "$HERE/compose/$svc" ]]; then
-    (cd "$HERE/compose/$svc" && docker compose unpause 2>/dev/null) || true
-  fi
+unpause_container() {
+  local name=$1
+  podman unpause "$name" 2>/dev/null || true
 }
 
 cleanup() {
-  unpause_svc jellyfin
-  unpause_svc copyparty
+  unpause_container jellyfin
+  unpause_container copyparty
 }
 trap cleanup EXIT
 
-pause_svc jellyfin
-pause_svc copyparty
+pause_container jellyfin
+pause_container copyparty
 
 echo "Running restic backup"
 restic backup "$DATA" \

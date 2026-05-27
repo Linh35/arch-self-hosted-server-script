@@ -1,8 +1,9 @@
 # arch-self-hosted-server-script
 
-My self-hosted setup on Arch. Bootstrap script, a few docker-compose
-files, Cloudflare tunnel in front, restic for backups. Replaces Google
-Photos, Drive, and a few other things I'd rather not pay for.
+My self-hosted setup on Arch. Bootstrap script, a few compose files run
+under rootless Podman, Cloudflare tunnel in front, restic for backups.
+Replaces Google Photos, Drive, and a few other things I'd rather not
+pay for.
 
 ## Stack
 
@@ -41,9 +42,10 @@ cd ~/selfhost
 ./bootstrap.sh
 ```
 
-That installs Docker, cloudflared, restic, Kodi, pulls the Immich compose
-template, and copies every `.env.example` to `.env`. Log out and back in
-afterwards so your docker group membership applies.
+That installs Podman, podman-compose, rclone, cloudflared, restic, Kodi,
+pulls the Immich compose template, and copies every `.env.example` to
+`.env`. It also enables lingering so containers come back up after a
+reboot without you logging in first.
 
 Then fill in:
 
@@ -104,8 +106,12 @@ gitignored. Don't commit anything from those paths.
 
 ## Notes
 
-Arch-only (`pacman`). On Artix you'd need an OpenRC unit for cloudflared
-instead of the systemd one. Everything else should work as is.
+Containers run rootless. The compose files are still called
+`docker-compose.yml` because that's what `podman-compose` looks for. If
+you want to use `docker compose` instead, the files are compatible.
+
+Arch-only (`pacman`). On Artix you'd need OpenRC units for cloudflared
+and the rootless podman bits instead of the systemd ones.
 
 Cloudflare's free plan caps requests through the proxy at around 100 MB.
 Phone photo uploads are fine. Anything bigger goes over the LAN.
