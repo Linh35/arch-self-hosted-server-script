@@ -5,19 +5,22 @@
 #
 #   sudo cp cloudflared/config.yml /etc/cloudflared/
 #   sudo cp ~/.cloudflared/<UUID>.json /etc/cloudflared/
+#
+# This config runs the tunnel in PRIVATE NETWORK mode (WARP-to-Tunnel).
+# Nothing is published on a public hostname. The tunnel only forwards
+# traffic for the private CIDR routed to it (see README), and only devices
+# running the Cloudflare WARP client enrolled in your Zero Trust org can
+# reach it. Services stay LAN-only; the tunnel is just the VPN path in.
 
 tunnel: REPLACE_WITH_TUNNEL_UUID
 credentials-file: /etc/cloudflared/REPLACE_WITH_TUNNEL_UUID.json
 
+# Route private IP traffic from WARP clients into the LAN.
+warp-routing:
+  enabled: true
+
+# No public ingress. The catch-all 404 is required when an `ingress`
+# block is present, but with WARP routing you can omit `ingress` entirely.
+# Left here (returning 404 for any stray public request) as a safety net.
 ingress:
-  - hostname: photos.example.com
-    service: http://localhost:2283
-
-  - hostname: files.example.com
-    service: http://localhost:3923
-
-  - hostname: tv.example.com
-    service: http://localhost:8096
-
-  # Catch-all (required, must be last)
   - service: http_status:404
