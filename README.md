@@ -1,19 +1,28 @@
 # arch-self-hosted-server-script
 
 My self-hosted setup on Arch. Bootstrap script, a few compose files run
-under rootless Podman, Cloudflare tunnel in front, restic for backups.
-Replaces Google Photos, Drive, and a few other things I'd rather not
-pay for.
+under rootless Podman, a Cloudflare tunnel as the private VPN path in,
+restic for backups. Replaces Google Photos, Drive, and a few other
+things I'd rather not pay for.
+
+Everything stays on the LAN. Nothing is published to a public hostname.
+From outside the house you reach the services over the tunnel, which only
+accepts devices running the Cloudflare WARP client enrolled in your Zero
+Trust org — so the tunnel acts as a VPN, not a public front door.
 
 ## Stack
 
-| Software         | Port  | Subdomain |
-|------------------|-------|-----------|
-| Immich           | 2283  | photos.…  |
-| Copyparty        | 3923  | files.…   |
-| Jellyfin         | 8096  | tv.…      |
-| Stremio server   | 11470 | LAN only  |
-| Gluetun (VPN)    | —     | —         |
+| Software         | Port  | Access                    |
+|------------------|-------|---------------------------|
+| Immich           | 2283  | LAN / WARP tunnel         |
+| Copyparty        | 3923  | LAN / WARP tunnel         |
+| Jellyfin         | 8096  | LAN / WARP tunnel         |
+| Stremio server   | 11470 | LAN / WARP tunnel         |
+| Gluetun (VPN)    | —     | — (outbound for Stremio)  |
+
+Every service is reachable at `http://<server-ip>:PORT` on the LAN, and
+the same address from anywhere once your device is on the WARP tunnel.
+No service is exposed on a public hostname.
 
 Copyparty handles the Drive role. It speaks WebDAV so any OS can mount it
 like a normal network drive, has a usable web UI, and is one small Python
@@ -29,16 +38,23 @@ pick directly to the device.
 
 No email in here. I use Fastmail. Calendar is planned (Radicale).
 
-## Cloudflare tunnel
+## Cloudflare tunnel (as a VPN)
 
-`cloudflared` keeps an outbound connection open to Cloudflare and they
-route incoming requests back through it. No port forwarding, no exposed
-home IP, works through CGNAT, HTTPS handled for you. The price is that
-Cloudflare sees the traffic in plaintext. If that bothers you, use
-Tailscale instead.
+`cloudflared` keeps an outbound connection open to Cloudflare. No port
+forwarding, no exposed home IP, works through CGNAT. Instead of publishing
+public hostnames, this setup runs the tunnel in **private network**
+(WARP-to-Tunnel) mode: a private CIDR — your LAN subnet — is routed
+through the tunnel, and only devices running the Cloudflare **WARP**
+client, enrolled in your Zero Trust org, can reach it. So it behaves like
+a VPN. Nothing is open to the public internet.
 
-Services also listen on all interfaces, so on the LAN you can hit them
-directly at `http://<server-ip>:PORT`.
+On the LAN you hit services directly at `http://<server-ip>:PORT` since
+they listen on all interfaces. From outside, connect WARP and use the
+exact same LAN address — the tunnel carries it.
+
+The price is that Cloudflare's edge sits in the path. If that bothers you,
+plain WireGuard or Tailscale gets you the same LAN-only-over-VPN shape
+without a third party.
 
 ## Setup
 
@@ -59,7 +75,7 @@ Then fill in:
 - `compose/immich/.env` — set `DB_PASSWORD` and `UPLOAD_LOCATION`.
 - `.env` and `compose/jellyfin/.env` — change `DOMAIN` and `TZ` if needed.
 
-### Cloudflare tunnel
+### Cloudflare tunnel (WARP-to-Tunnel)
 
 ```sh
 cloudflared tunnel login
@@ -67,12 +83,14 @@ cloudflared tunnel create selfhost
 ```
 
 The create command prints a UUID. Paste it into `cloudflared/config.yml`
-in both places, and swap `example.com` for your domain.
+in both places. There are no hostnames to set here — the config routes a
+private network, not public domains.
+
+Route your LAN subnet through the tunnel (adjust the CIDR to match your
+network, e.g. `192.168.1.0/24`):
 
 ```sh
-cloudflared tunnel route dns selfhost photos.yourdomain.com
-cloudflared tunnel route dns selfhost files.yourdomain.com
-cloudflared tunnel route dns selfhost tv.yourdomain.com
+cloudflared tunnel route ip add 192.168.1.0/24 selfhost
 
 sudo mkdir -p /etc/cloudflared
 sudo cp cloudflared/config.yml /etc/cloudflared/
@@ -80,6 +98,22 @@ sudo cp ~/.cloudflared/<uuid>.json /etc/cloudflared/
 sudo cloudflared service install
 sudo systemctl enable --now cloudflared
 ```
+
+Then, in the Cloudflare **Zero Trust** dashboard (one-time, in the web UI):
+
+- **Networks → Tunnels** — confirm `selfhost` is *Healthy* and shows your
+  CIDR under its private routes.
+- **Settings → WARP Client → Device enrollment** — add a policy for who
+  may join (e.g. your email).
+- **Settings → WARP Client → Device settings → Split Tunnels** — WARP
+  excludes RFC1918 ranges by default, which would skip your LAN. Remove
+  your CIDR from the *Exclude* list (or switch that profile to *Include*
+  and add it) so LAN traffic goes through the tunnel.
+
+On each device that needs remote access, install the **Cloudflare WARP**
+client, log in to your team/org, and connect. Once enrolled you can reach
+every service at its LAN address (`http://<server-ip>:2283`, etc.) from
+anywhere. On the LAN itself you don't need WARP at all.
 
 ### Stremio + VPN
 
@@ -91,9 +125,10 @@ Once everything is up, install Stremio on a tablet or phone, open the
 settings, and point it at `http://<your-server-lan-ip>:11470`. Add
 addons like Torrentio, ThePirateBay+, or YTS for search.
 
-The server is not exposed via Cloudflare. Stremio Server has no auth
-and would happily serve random people, so keep it LAN-only. If you
-want to use it away from home, reach it through Tailscale or similar.
+Stremio Server has no auth of its own, so it relies on the same boundary
+as everything else: it only listens on the LAN and is reachable from
+outside solely through the authenticated WARP tunnel. Keep it that way —
+don't add a public hostname for it.
 
 ### Start
 
@@ -133,8 +168,10 @@ you want to use `docker compose` instead, the files are compatible.
 Arch-only (`pacman`). On Artix you'd need OpenRC units for cloudflared
 and the rootless podman bits instead of the systemd ones.
 
-Cloudflare's free plan caps requests through the proxy at around 100 MB.
-Phone photo uploads are fine. Anything bigger goes over the LAN.
+The ~100 MB request cap on Cloudflare's free plan applies to the HTTP
+proxy (public hostnames), not to WARP-to-Tunnel routing, so large uploads
+over WARP aren't subject to it. On the LAN nothing touches Cloudflare at
+all — full local speed.
 
 Hardware transcoding in Jellyfin is commented out. Uncomment the block
 for your GPU in `compose/jellyfin/docker-compose.yml`.
