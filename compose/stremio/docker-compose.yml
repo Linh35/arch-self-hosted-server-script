@@ -11,7 +11,7 @@ services:
       - "11470:11470"
       - "12470:12470"
     volumes:
-      - ../../data/gluetun:/gluetun
+      - ${STORAGE_ROOT:-../../data}/gluetun:/gluetun
     environment:
       - TZ=${TZ:-UTC}
       - VPN_SERVICE_PROVIDER=${VPN_SERVICE_PROVIDER:?set in .env}
@@ -33,7 +33,7 @@ services:
     depends_on:
       - gluetun
     volumes:
-      - ../../data/stremio:/root/.stremio-server
+      - ${STORAGE_ROOT:-../../data}/stremio:/root/.stremio-server
     environment:
       - NO_CORS=1
     restart: unless-stopped

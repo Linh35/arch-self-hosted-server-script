@@ -9,9 +9,20 @@ set -euo pipefail
 #   ./scripts/manage.sh pull         pull latest images
 #   ./scripts/manage.sh ps           status of all stacks
 #   ./scripts/manage.sh logs <svc>   tail logs for one stack
+#
+# Honours DRY_RUN=1 to print podman-compose commands instead of running them.
 
-HERE="$(cd "$(dirname "$0")/.." && pwd)"
-COMPOSE_ROOT="$HERE/compose"
+SCRIPT_NAME=manage
+# shellcheck source=scripts/lib.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
+
+COMPOSE_ROOT="$REPO_ROOT/compose"
+
+# Single source of truth for the storage location: the repo-root .env. Read it
+# in a subshell so only STORAGE_ROOT crosses into the environment (per-stack
+# .env files keep owning everything else). podman-compose then substitutes it.
+sr="$( set -a; [[ -f "$REPO_ROOT/.env" ]] && source "$REPO_ROOT/.env" 2>/dev/null; printf '%s' "${STORAGE_ROOT:-}" )"
+[[ -n "$sr" ]] && export STORAGE_ROOT="$sr"
 
 services() {
   find "$COMPOSE_ROOT" -mindepth 2 -maxdepth 2 -name docker-compose.yml -printf '%h\n' | sort
@@ -19,34 +30,16 @@ services() {
 
 cmd=${1:-}
 case "$cmd" in
-  up)
+  up|down|restart|pull)
     for d in $(services); do
-      echo "==> $(basename "$d"): up"
-      (cd "$d" && podman-compose up -d)
-    done
-    ;;
-  down)
-    for d in $(services); do
-      echo "==> $(basename "$d"): down"
-      (cd "$d" && podman-compose down)
-    done
-    ;;
-  restart)
-    for d in $(services); do
-      echo "==> $(basename "$d"): restart"
-      (cd "$d" && podman-compose restart)
-    done
-    ;;
-  pull)
-    for d in $(services); do
-      echo "==> $(basename "$d"): pull"
-      (cd "$d" && podman-compose pull)
+      echo "==> $(basename "$d"): $cmd"
+      ( cd "$d" && run podman-compose "$cmd" $( [[ "$cmd" == up ]] && echo "-d" ) )
     done
     ;;
   ps)
     for d in $(services); do
       echo "==> $(basename "$d")"
-      (cd "$d" && podman-compose ps)
+      ( cd "$d" && run podman-compose ps )
     done
     ;;
   logs)
@@ -56,7 +49,7 @@ case "$cmd" in
       echo "available: $(services | xargs -n1 basename | tr '\n' ' ')" >&2
       exit 1
     fi
-    cd "$COMPOSE_ROOT/$svc" && podman-compose logs -f
+    cd "$COMPOSE_ROOT/$svc" && run podman-compose logs -f
     ;;
   *)
     echo "usage: $0 {up|down|restart|pull|ps|logs <service>}" >&2
