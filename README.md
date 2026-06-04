@@ -16,7 +16,10 @@ Trust org — so the tunnel acts as a VPN, not a public front door.
 |------------------|-------|---------------------------|
 | Immich           | 2283  | LAN / WARP tunnel         |
 | Copyparty        | 3923  | LAN / WARP tunnel         |
-| Jellyfin         | 8096  | LAN / WARP tunnel         |
+| Calibre (GUI)    | 8080  | LAN / WARP tunnel         |
+| Calibre content  | 8081  | LAN / WARP tunnel         |
+| Calibre-Web      | 8083  | LAN / WARP tunnel         |
+| Navidrome        | 4533  | LAN / WARP tunnel         |
 | Stremio server   | 11470 | LAN / WARP tunnel         |
 | Gluetun (VPN)    | —     | — (outbound for Stremio)  |
 
@@ -28,8 +31,14 @@ Copyparty handles the Drive role. It speaks WebDAV so any OS can mount it
 like a normal network drive, has a usable web UI, and is one small Python
 process with no database to babysit.
 
-Kodi is installed natively by the bootstrap script because it runs on the
-TV box, not on the server.
+Calibre manages your ebook library and runs a content server; Calibre-Web
+serves that same library to clients as a clean web reader with OPDS, so a
+book added in either shows up in both.
+
+Navidrome serves your music to every device over the Subsonic API — native
+apps on iOS (Amperfy, play:Sub), macOS and Linux (Supersonic, Feishin,
+Tempo), plus its own web UI. A downloader (spotDL or deemix) drops files
+into the music folder; Navidrome indexes them.
 
 Stremio server runs inside Gluetun's network namespace, so every byte
 goes through the VPN. If the VPN drops, nothing leaks. The Stremio app
@@ -37,6 +46,33 @@ on a phone or tablet talks to it over the LAN and streams whatever you
 pick directly to the device.
 
 No email in here. I use Fastmail. Calendar is planned (Radicale).
+
+## Storage (RAID)
+
+All service data lives under one directory set by `STORAGE_ROOT` in the
+root `.env` (the stacks read it through `./scripts/manage.sh`). Point it at
+a btrfs RAID1 pool and every photo, file, book, and track is mirrored
+across two disks — lose a drive, lose nothing.
+
+`scripts/storage.sh` wraps the btrfs side:
+
+```sh
+sudo ./scripts/storage.sh create /dev/sdb /dev/sdc   # new RAID1 pool (WIPES the disks)
+sudo ./scripts/storage.sh add /dev/sdd               # plug in a disk, grow, stay redundant
+sudo ./scripts/storage.sh status                     # devices + usage
+sudo ./scripts/storage.sh scrub                      # verify + self-heal from the mirror
+sudo ./scripts/storage.sh health                     # error counters + scrub state
+```
+
+`create` builds the mirror, mounts it at `STORAGE_ROOT`, and writes an
+fstab entry so it returns after a reboot. Adding a disk is online — no
+reformat, no downtime; btrfs rebalances and capacity grows. Usable space
+is about half the raw total (the cost of mirroring). btrfs RAID1 gives
+real-time redundancy, checksums with self-healing, easy online growth, and
+it's in the mainline kernel so nothing breaks across Arch updates.
+
+Leave `STORAGE_ROOT` unset and everything falls back to the in-repo `data/`
+directory — fine for a single disk or a quick try.
 
 ## Cloudflare tunnel (as a VPN)
 
@@ -64,16 +100,20 @@ cd ~/selfhost
 ./bootstrap.sh
 ```
 
-That installs Podman, podman-compose, cloudflared, restic, Kodi, pulls
-the Immich compose template, and copies every `.env.example` to `.env`.
+That installs Podman, podman-compose, cloudflared, restic, btrfs-progs,
+pulls the Immich compose template, and copies every `.env.example` to
+`.env`.
 It also enables lingering so containers come back up after a reboot
 without you logging in first.
 
 Then fill in:
 
+- `.env` — set `STORAGE_ROOT` to your pool mount (or leave it commented for
+  `data/`), plus `DOMAIN`/`TZ` if needed.
 - `compose/copyparty/.env` — set `COPYPARTY_PASSWORD`. Required.
-- `compose/immich/.env` — set `DB_PASSWORD` and `UPLOAD_LOCATION`.
-- `.env` and `compose/jellyfin/.env` — change `DOMAIN` and `TZ` if needed.
+- `compose/immich/.env` — set `DB_PASSWORD`, and `UPLOAD_LOCATION` to
+  `$STORAGE_ROOT/immich`.
+- `compose/calibre/.env` — optional `CALIBRE_GUI_PASSWORD`.
 
 ### Cloudflare tunnel (WARP-to-Tunnel)
 
@@ -130,6 +170,26 @@ as everything else: it only listens on the LAN and is reachable from
 outside solely through the authenticated WARP tunnel. Keep it that way —
 don't add a public hostname for it.
 
+### Books (Calibre + Calibre-Web)
+
+Open the Calibre desktop GUI at `http://<server-ip>:8080` and create (or
+point to) the library at `/library`. To serve e-reader apps over OPDS,
+start the Content Server inside Calibre: Preferences → Sharing over the net
+→ start (it listens on `:8081`).
+
+Then open Calibre-Web at `http://<server-ip>:8083`. On first run it asks
+for the library database location — enter `/books`, the same library
+Calibre writes to. Create the admin user and you're done; books added in
+Calibre show up in Calibre-Web for browsing, reading, and download.
+
+### Music (Navidrome)
+
+Put your music under `$STORAGE_ROOT/music` (a downloader like spotDL or
+deemix can write straight there). Open Navidrome at
+`http://<server-ip>:4533`, create the admin user, and it scans the folder.
+Point any Subsonic client at that URL — Amperfy or play:Sub on iOS,
+Supersonic/Feishin/Tempo on macOS and Linux — or use the web UI.
+
 ### Start
 
 ```sh
@@ -172,9 +232,6 @@ The ~100 MB request cap on Cloudflare's free plan applies to the HTTP
 proxy (public hostnames), not to WARP-to-Tunnel routing, so large uploads
 over WARP aren't subject to it. On the LAN nothing touches Cloudflare at
 all — full local speed.
-
-Hardware transcoding in Jellyfin is commented out. Uncomment the block
-for your GPU in `compose/jellyfin/docker-compose.yml`.
 
 The Immich compose isn't committed. Bootstrap pulls the latest one from
 upstream, so re-running it after a while will move you to a newer version.

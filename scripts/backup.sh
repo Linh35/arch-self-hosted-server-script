@@ -13,8 +13,13 @@ set -euo pipefail
 #   2. Source it and run `restic init` once.
 #   3. Put this in cron or a systemd timer.
 
-HERE="$(cd "$(dirname "$0")/.." && pwd)"
-DATA="$HERE/data"
+SCRIPT_NAME=backup
+# shellcheck source=scripts/lib.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
+load_env
+
+HERE="$REPO_ROOT"
+DATA="$(storage_root)"   # the btrfs pool (or data/ if STORAGE_ROOT is unset)
 DUMPS="$DATA/_dumps"
 ENV_FILE="${SELFHOST_BACKUP_ENV:-$HOME/.config/selfhost-backup.env}"
 LOCK="$HERE/.restic-lock"
@@ -55,12 +60,10 @@ unpause_container() {
 }
 
 cleanup() {
-  unpause_container jellyfin
   unpause_container copyparty
 }
 trap cleanup EXIT
 
-pause_container jellyfin
 pause_container copyparty
 
 echo "Running restic backup"

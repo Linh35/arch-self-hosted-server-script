@@ -21,8 +21,8 @@ log "Installing packages"
 sudo pacman -S --needed --noconfirm \
   podman podman-compose \
   fuse-overlayfs slirp4netns aardvark-dns netavark \
-  restic git curl jq wget tar \
-  kodi
+  btrfs-progs \
+  restic git curl jq wget tar
 
 log "Enabling lingering and rootless podman services"
 sudo loginctl enable-linger "$USER"

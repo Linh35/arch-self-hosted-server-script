@@ -1,0 +1,44 @@
+services:
+  # Calibre — owns and manages the library, and runs the Content Server that
+  # OPDS clients and Calibre-Web connect to. Manage the library from the
+  # browser-based desktop GUI on :8080; the Content Server lives on :8081.
+  calibre:
+    image: lscr.io/linuxserver/calibre:latest
+    container_name: calibre
+    restart: unless-stopped
+    ports:
+      - "8080:8080"   # Calibre desktop GUI (library management, in-browser)
+      - "8081:8081"   # Calibre Content Server (OPDS + remote/e-reader clients)
+    volumes:
+      - ${STORAGE_ROOT:-../../data}/calibre/config:/config
+      - ${STORAGE_ROOT:-../../data}/calibre/library:/library
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-UTC}
+      # Optional: lock the desktop GUI. Leave blank for no password.
+      - PASSWORD=${CALIBRE_GUI_PASSWORD:-}
+
+  # Calibre-Web — the client-facing reader/OPDS UI. It serves the SAME library
+  # that Calibre manages (shared volume below), so anything added in Calibre
+  # shows up here for browsing, reading, and download.
+  calibre-web:
+    image: lscr.io/linuxserver/calibre-web:latest
+    container_name: calibre-web
+    restart: unless-stopped
+    depends_on:
+      - calibre
+    ports:
+      - "8083:8083"
+    volumes:
+      - ${STORAGE_ROOT:-../../data}/calibre-web/config:/config
+      # Same on-disk library Calibre writes to — Calibre-Web reads its
+      # metadata.db from here. Point Calibre-Web at /books on first run.
+      - ${STORAGE_ROOT:-../../data}/calibre/library:/books
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-UTC}
+      # Bundles Calibre's ebook-convert binaries into Calibre-Web so it can
+      # convert/edit formats itself. Comment out if you don't need conversion.
+      - DOCKER_MODS=linuxserver/mods:universal-calibre
