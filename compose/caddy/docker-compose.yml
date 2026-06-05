@@ -1,0 +1,38 @@
+services:
+  # Caddy — one front door for the whole stack. Instead of remembering
+  # ip:port for each service you reach them by name (music.<domain>,
+  # photos.<domain>, ...) over HTTPS. It terminates TLS and reverse-proxies
+  # to each service's published port on the host.
+  #
+  # TLS: defaults to Caddy's built-in CA (see Caddyfile) so HTTPS works on the
+  # LAN with zero external setup. To get publicly-trusted certs (no browser
+  # warnings, e.g. for Amperfy on iOS), set CLOUDFLARE_API_TOKEN below and flip
+  # the (tls) snippet in the Caddyfile to the Cloudflare DNS challenge.
+  caddy:
+    build:
+      context: .
+      dockerfile: Containerfile
+    image: localhost/selfhost-caddy:latest
+    container_name: caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"   # HTTP/3 (QUIC)
+    # Reach the other stacks' published ports on the host. Each compose project
+    # has its own network, so we proxy via the host gateway rather than sharing
+    # a network. Override UPSTREAM_HOST with the server's LAN IP if your podman
+    # networking doesn't provide host.containers.internal.
+    extra_hosts:
+      - "host.containers.internal:host-gateway"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ${STORAGE_ROOT:-../../data}/caddy/data:/data       # issued certs + CA
+      - ${STORAGE_ROOT:-../../data}/caddy/config:/config
+    environment:
+      - DOMAIN=${DOMAIN:-localhost}
+      - UPSTREAM_HOST=${UPSTREAM_HOST:-host.containers.internal}
+      # Only used when the Caddyfile (tls) snippet is set to the Cloudflare DNS
+      # challenge. Harmless to leave blank for the default internal-CA mode.
+      - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN:-}
+      - TZ=${TZ:-UTC}

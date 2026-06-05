@@ -12,20 +12,23 @@ Trust org — so the tunnel acts as a VPN, not a public front door.
 
 ## Stack
 
-| Software         | Port  | Access                    |
-|------------------|-------|---------------------------|
-| Immich           | 2283  | LAN / WARP tunnel         |
-| Copyparty        | 3923  | LAN / WARP tunnel         |
-| Calibre (GUI)    | 8080  | LAN / WARP tunnel         |
-| Calibre content  | 8081  | LAN / WARP tunnel         |
-| Calibre-Web      | 8083  | LAN / WARP tunnel         |
-| Navidrome        | 4533  | LAN / WARP tunnel         |
-| Stremio server   | 11470 | LAN / WARP tunnel         |
-| Gluetun (VPN)    | —     | — (outbound for Stremio)  |
+| Software         | Port    | Name (via Caddy)     | Access                    |
+|------------------|---------|----------------------|---------------------------|
+| Caddy (proxy)    | 80/443  | —                    | LAN / WARP tunnel         |
+| Immich           | 2283    | `photos.<domain>`    | LAN / WARP tunnel         |
+| Copyparty        | 3923    | `files.<domain>`     | LAN / WARP tunnel         |
+| Calibre (GUI)    | 8080    | `books.<domain>`     | LAN / WARP tunnel         |
+| Calibre content  | 8081    | —                    | LAN / WARP tunnel         |
+| Calibre-Web      | 8083    | `read.<domain>`      | LAN / WARP tunnel         |
+| Navidrome        | 4533    | `music.<domain>`     | LAN / WARP tunnel         |
+| Stremio server   | 11470   | — (app talks direct) | LAN / WARP tunnel         |
+| Gluetun (VPN)    | —       | —                    | — (outbound for Stremio)  |
 
-Every service is reachable at `http://<server-ip>:PORT` on the LAN, and
-the same address from anywhere once your device is on the WARP tunnel.
-No service is exposed on a public hostname.
+Caddy puts a clean name and HTTPS in front of each service, so you reach
+them at `https://music.<domain>` instead of `http://<server-ip>:4533`. The
+raw `http://<server-ip>:PORT` still works too. Either way it's the same on
+the LAN and from anywhere once your device is on the WARP tunnel — no
+service is exposed on a public hostname.
 
 Copyparty handles the Drive role. It speaks WebDAV so any OS can mount it
 like a normal network drive, has a usable web UI, and is one small Python
@@ -114,6 +117,8 @@ Then fill in:
 - `compose/immich/.env` — set `DB_PASSWORD`, and `UPLOAD_LOCATION` to
   `$STORAGE_ROOT/immich`.
 - `compose/calibre/.env` — optional `CALIBRE_GUI_PASSWORD`.
+- `compose/caddy/.env` — set `DOMAIN` for the service names; optionally
+  `UPSTREAM_HOST` or `CLOUDFLARE_API_TOKEN` (see Reverse proxy below).
 
 ### Cloudflare tunnel (WARP-to-Tunnel)
 
@@ -190,6 +195,38 @@ deemix can write straight there). Open Navidrome at
 Point any Subsonic client at that URL — Amperfy or play:Sub on iOS,
 Supersonic/Feishin/Tempo on macOS and Linux — or use the web UI.
 
+### Reverse proxy (Caddy)
+
+Caddy gives every service a name and HTTPS, so you browse to
+`https://music.<domain>` instead of `http://<server-ip>:4533`. It terminates
+TLS and proxies to each service's port on the host; `bootstrap.sh` lowers
+`net.ipv4.ip_unprivileged_port_start` so the rootless container can bind
+:80/:443.
+
+Set `DOMAIN` in `compose/caddy/.env` (or the root `.env`), then point the
+service names at the server. Because access is LAN-only, the names just need
+to resolve to the server's **LAN** IP — pick one:
+
+- Add A records `music`, `photos`, `files`, `books`, `read` (etc.) in your
+  DNS pointing at the LAN IP (e.g. `192.168.1.50`). Public DNS handing back a
+  private IP is fine — it only routes for devices on the LAN or WARP.
+- Or add the same names to `/etc/hosts` on each client.
+
+**TLS modes:**
+
+- *Default — internal CA.* HTTPS works immediately with no setup, but the
+  cert isn't publicly trusted. Install Caddy's root CA (written under
+  `$STORAGE_ROOT/caddy/data`) on your devices to silence warnings.
+- *Publicly-trusted — Cloudflare DNS.* Recommended once you have a domain on
+  Cloudflare (no warnings, e.g. for Amperfy on iOS). In
+  `compose/caddy/Caddyfile`, swap the `(tls)` snippet from `tls internal` to
+  the commented `dns cloudflare` block, and set `CLOUDFLARE_API_TOKEN` (a
+  scoped token with Zone:Read + DNS:Edit) in `compose/caddy/.env`. The DNS-01
+  challenge needs no inbound ports, so it still works with nothing public.
+
+If `host.containers.internal` doesn't resolve in your podman networking, set
+`UPSTREAM_HOST` to the server's LAN IP in `compose/caddy/.env`.
+
 ### Start
 
 ```sh
@@ -205,15 +242,19 @@ containers — every mutating command goes through a `DRY_RUN`-aware wrapper,
 so the suite just prints what *would* happen.
 
 ```sh
-make test            # lint + compose validation + dry-run; runs anywhere
+make test            # lint + compose validation + dry-run + unit; runs anywhere
+make unit            # just the assertion-based unit tests (test/unit.sh)
 make lint            # just bash -n + shellcheck
 make test-container  # build an Arch container and run the suite inside it
 ```
 
 `make test` runs `bash -n` and shellcheck on every script, checks each
-compose file parses, and walks the bootstrap/storage/manage/backup code
-paths with `DRY_RUN=1`. It degrades gracefully when a tool is missing (it
-skips shellcheck if it isn't installed, for instance).
+compose file parses, walks the bootstrap/storage/manage/backup code paths
+with `DRY_RUN=1`, then runs `test/unit.sh` — assertion-based tests that
+check actual behaviour (lib helpers, storage argument validation and the
+RAID1 commands it emits, manage dispatch, the Caddy routes, compose
+invariants). It degrades gracefully when a tool is missing (it skips
+shellcheck if it isn't installed, for instance).
 
 `make test-container` builds `test/Containerfile` (Arch + the toolchain)
 and runs the suite in real Linux — the closest thing to the target host.

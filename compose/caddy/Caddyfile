@@ -1,0 +1,59 @@
+# Reverse proxy for the whole stack. Each service is reached by name over
+# HTTPS instead of ip:port. {$DOMAIN} and {$UPSTREAM_HOST} come from the
+# environment (compose/caddy/.env).
+
+# --- TLS mode -------------------------------------------------------------
+# Default: Caddy's built-in CA. HTTPS works immediately with no external
+# dependency, but the cert isn't publicly trusted — install Caddy's root CA
+# (it writes it to /data) on your devices to silence browser warnings.
+#
+# To get PUBLICLY-TRUSTED certs instead (recommended once you have a domain on
+# Cloudflare): comment out `tls internal` below and uncomment the Cloudflare
+# DNS block, then set CLOUDFLARE_API_TOKEN in compose/caddy/.env. The DNS-01
+# challenge needs no inbound ports, so it works even though nothing is public.
+(tls) {
+	tls internal
+	# tls {
+	# 	dns cloudflare {$CLOUDFLARE_API_TOKEN}
+	# 	resolvers 1.1.1.1
+	# }
+}
+
+# Shared per-site setup: TLS as configured above, plus response compression.
+(site) {
+	import tls
+	encode zstd gzip
+}
+
+# --- Services -------------------------------------------------------------
+# Each block maps a hostname to a service's published port on the host. Add a
+# matching DNS record (or hosts entry) pointing the name at the server's LAN
+# IP — see the README. Comment out any service you don't run.
+
+photos.{$DOMAIN} {
+	import site
+	reverse_proxy {$UPSTREAM_HOST}:2283   # Immich
+}
+
+music.{$DOMAIN} {
+	import site
+	reverse_proxy {$UPSTREAM_HOST}:4533   # Navidrome
+}
+
+files.{$DOMAIN} {
+	import site
+	reverse_proxy {$UPSTREAM_HOST}:3923   # Copyparty
+}
+
+books.{$DOMAIN} {
+	import site
+	reverse_proxy {$UPSTREAM_HOST}:8080   # Calibre desktop GUI
+}
+
+read.{$DOMAIN} {
+	import site
+	reverse_proxy {$UPSTREAM_HOST}:8083   # Calibre-Web
+}
+
+# Stremio's app talks to its server directly (and it lives behind the VPN), so
+# it's intentionally not proxied here. Reach it at http://<server-ip>:11470.
