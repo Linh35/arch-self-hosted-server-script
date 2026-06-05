@@ -1,0 +1,8 @@
+# Build context for the staging image (staging/Containerfile). Keep it small
+# and never bake real secrets or data into the image — the staging entrypoint
+# regenerates throwaway .env files anyway.
+.git
+**/.env
+**/data
+data
+test/**/data

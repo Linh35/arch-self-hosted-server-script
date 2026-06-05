@@ -1,0 +1,33 @@
+# Staging reverse proxy. Same routes as compose/caddy/Caddyfile, but uses
+# Caddy's built-in CA (`tls internal`) so it works with the stock caddy:2 image
+# and needs no Cloudflare token. Browsers will warn on the self-signed cert —
+# expected for throwaway staging.
+(site) {
+	tls internal
+	encode zstd gzip
+}
+
+photos.{$DOMAIN} {
+	import site
+	reverse_proxy {$UPSTREAM_HOST}:2283   # Immich
+}
+
+music.{$DOMAIN} {
+	import site
+	reverse_proxy {$UPSTREAM_HOST}:4533   # Navidrome
+}
+
+files.{$DOMAIN} {
+	import site
+	reverse_proxy {$UPSTREAM_HOST}:3923   # Copyparty
+}
+
+books.{$DOMAIN} {
+	import site
+	reverse_proxy {$UPSTREAM_HOST}:8080   # Calibre desktop GUI
+}
+
+read.{$DOMAIN} {
+	import site
+	reverse_proxy {$UPSTREAM_HOST}:8083   # Calibre-Web
+}

@@ -1,4 +1,4 @@
-.PHONY: help test unit lint test-container
+.PHONY: help test unit lint test-container staging-up staging-down staging-sh staging-logs staging-ps
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -16,3 +16,18 @@ lint: ## Just the linters: bash -n + shellcheck (if installed)
 
 test-container: ## Build the Arch container and run the suite inside it (macOS via podman machine)
 	@bash test/run.sh
+
+staging-up: ## Boot a disposable server-in-a-box to actually run the stacks (PROFILE=lite|full)
+	@bash staging/run.sh
+
+staging-down: ## Destroy the staging container and everything inside it
+	@podman rm -f selfhost-staging >/dev/null 2>&1 && echo "staging destroyed" || echo "staging not running"
+
+staging-sh: ## Open a shell inside the running staging container
+	@podman exec -it selfhost-staging bash
+
+staging-logs: ## Follow the staging container's startup output
+	@podman logs -f selfhost-staging
+
+staging-ps: ## List the inner service containers
+	@podman exec selfhost-staging podman ps

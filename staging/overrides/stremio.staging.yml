@@ -1,0 +1,16 @@
+# Staging Stremio: the VPN-stubbed variant. Production routes Stremio's traffic
+# through gluetun (a WireGuard VPN that needs a real key + /dev/net/tun), which
+# can't run in throwaway staging. Here we run just the Stremio server on the
+# container's own network. Used standalone by staging/entrypoint.sh.
+services:
+  stremio-server:
+    image: stremio/server:latest
+    container_name: stremio-server
+    restart: unless-stopped
+    ports:
+      - "11470:11470"
+      - "12470:12470"
+    volumes:
+      - /srv/staging-data/stremio:/root/.stremio-server
+    environment:
+      - NO_CORS=1

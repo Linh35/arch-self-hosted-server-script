@@ -1,0 +1,25 @@
+# Staging Caddy: stock upstream image with the internal CA, so it needs no
+# custom build (no xcaddy/Cloudflare module) and no CLOUDFLARE_API_TOKEN. Used
+# standalone (not merged with the repo compose) by staging/entrypoint.sh.
+#
+# In nested mode the other stacks publish their ports on THIS container, so
+# host.containers.internal (the inner podman gateway) reaches them — same shape
+# as production, where it's the real host.
+services:
+  caddy:
+    image: docker.io/library/caddy:2
+    container_name: caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    extra_hosts:
+      - "host.containers.internal:host-gateway"
+    volumes:
+      - /opt/selfhost/staging/overrides/Caddyfile.staging:/etc/caddy/Caddyfile:ro
+      - /srv/staging-data/caddy/data:/data
+      - /srv/staging-data/caddy/config:/config
+    environment:
+      - DOMAIN=localhost
+      - UPSTREAM_HOST=host.containers.internal
+      - TZ=UTC
