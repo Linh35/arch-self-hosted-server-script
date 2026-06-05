@@ -21,14 +21,30 @@ Trust org — so the tunnel acts as a VPN, not a public front door.
 | Calibre content  | 8081    | —                    | LAN / WARP tunnel         |
 | Calibre-Web      | 8083    | `read.<domain>`      | LAN / WARP tunnel         |
 | Navidrome        | 4533    | `music.<domain>`     | LAN / WARP tunnel         |
-| Stremio server   | 11470   | — (app talks direct) | LAN / WARP tunnel         |
-| Gluetun (VPN)    | —       | —                    | — (outbound for Stremio)  |
+| Stremio (web)    | 8181    | — (open in browser)  | LAN / WARP tunnel         |
 
 Caddy puts a clean name and HTTPS in front of each service, so you reach
 them at `https://music.<domain>` instead of `http://<server-ip>:4533`. The
 raw `http://<server-ip>:PORT` still works too. Either way it's the same on
 the LAN and from anywhere once your device is on the WARP tunnel — no
 service is exposed on a public hostname.
+
+### Credentials
+
+The network perimeter (LAN + WARP tunnel) is the access control, so services
+run with as little auth as each app allows:
+
+| Service     | Login |
+|-------------|-------|
+| Copyparty   | none (anonymous read/write) |
+| Calibre GUI | none |
+| Stremio     | none |
+| Navidrome   | `admin` / `admin` — auto-created on first run; set `NAVIDROME_ADMIN_PASSWORD` in `compose/navidrome/.env` to change |
+| Calibre-Web | `admin` / `admin123` (built-in default) — flip on Anonymous Browsing in its admin settings for no login |
+| Immich      | no anonymous mode — register the first user (becomes admin), who creates the rest |
+
+Anyone on the LAN or any WARP-enrolled device has this access, including
+delete on Copyparty. If that perimeter isn't fully trusted, add per-app auth.
 
 Copyparty handles the Drive role. It speaks WebDAV so any OS can mount it
 like a normal network drive, has a usable web UI, and is one small Python
@@ -42,11 +58,6 @@ Navidrome serves your music to every device over the Subsonic API — native
 apps on iOS (Amperfy, play:Sub), macOS and Linux (Supersonic, Feishin,
 Tempo), plus its own web UI. A downloader (spotDL or deemix) drops files
 into the music folder; Navidrome indexes them.
-
-Stremio server runs inside Gluetun's network namespace, so every byte
-goes through the VPN. If the VPN drops, nothing leaks. The Stremio app
-on a phone or tablet talks to it over the LAN and streams whatever you
-pick directly to the device.
 
 No email in here. I use Fastmail. Calendar is planned (Radicale).
 
@@ -160,20 +171,26 @@ client, log in to your team/org, and connect. Once enrolled you can reach
 every service at its LAN address (`http://<server-ip>:2283`, etc.) from
 anywhere. On the LAN itself you don't need WARP at all.
 
-### Stremio + VPN
+### Stremio (browse + stream movies via torrents)
 
-Edit `compose/stremio/.env` and fill in your VPN provider details. The
-example file has a Mullvad WireGuard block; for other providers, the
-variable names are at <https://github.com/qdm12/gluetun-wiki>.
+`compose/stremio` runs the Stremio web UI and its streaming server together.
+Open it in a browser on the LAN or over WARP at `http://<server-ip>:8181`; it
+streams torrents on the fly. **No VPN** — torrent traffic exits on this host's
+IP. Wrap it in gluetun if you want that hidden (the VPN variant is in git
+history). It isn't proxied through Caddy (an HTTPS page talking to the HTTP
+streaming server trips browser mixed-content), so reach it directly by IP:port.
 
-Once everything is up, install Stremio on a tablet or phone, open the
-settings, and point it at `http://<your-server-lan-ip>:11470`. Add
-addons like Torrentio, ThePirateBay+, or YTS for search.
+**Set up Torrentio** — the addon that actually finds the torrents. It's stored
+per browser, so do this once on each device:
 
-Stremio Server has no auth of its own, so it relies on the same boundary
-as everything else: it only listens on the LAN and is reachable from
-outside solely through the authenticated WARP tunnel. Keep it that way —
-don't add a public hostname for it.
+1. Open `http://<server-ip>:8181` → the **Addons** (puzzle-piece) tab.
+2. Install this manifest URL:
+   `https://torrentio.strem.fun/manifest.json`
+   (or pick providers/quality first at <https://torrentio.strem.fun/configure>
+   and install the custom URL it gives you).
+3. Open a movie/show and choose a stream — the server downloads + streams it.
+
+Cache/data lives under `$STORAGE_ROOT/stremio`.
 
 ### Books (Calibre + Calibre-Web)
 

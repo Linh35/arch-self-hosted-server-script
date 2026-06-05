@@ -40,10 +40,6 @@ while IFS= read -r c; do
   d=$(dirname "$c")
   if (
     cd "$d"
-    # Provide the vars the compose files mark as required, so validation
-    # doesn't trip on `${VAR:?...}` substitutions.
-    export COPYPARTY_PASSWORD=test VPN_SERVICE_PROVIDER=mullvad \
-           WIREGUARD_PRIVATE_KEY=x WIREGUARD_ADDRESSES=10.0.0.2/32
     if command -v podman-compose >/dev/null 2>&1; then
       podman-compose -f docker-compose.yml config >/dev/null 2>&1
     elif command -v docker >/dev/null 2>&1; then

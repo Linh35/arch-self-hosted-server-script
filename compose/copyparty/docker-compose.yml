@@ -16,7 +16,7 @@ services:
       - -e2dsa
       - -e2ts
       - --daw
-      - -a
-      - "admin:${COPYPARTY_PASSWORD:?Set COPYPARTY_PASSWORD in compose/copyparty/.env}"
+      # No accounts: anonymous gets full read/write/move/delete/admin. This stack
+      # is LAN + WARP-tunnel only, so the network perimeter is the access control.
       - -v
-      - "/w::rwmda,admin"
+      - "/w::rwmda"

@@ -56,6 +56,3 @@ read.{$DOMAIN} {
 	import site
 	reverse_proxy {$UPSTREAM_HOST}:8083   # Calibre-Web
 }
-
-# Stremio's app talks to its server directly (and it lives behind the VPN), so
-# it's intentionally not proxied here. Reach it at http://<server-ip>:11470.

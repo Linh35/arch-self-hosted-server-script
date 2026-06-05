@@ -16,8 +16,9 @@ services:
       - PUID=${PUID:-1000}
       - PGID=${PGID:-1000}
       - TZ=${TZ:-UTC}
-      # Optional: lock the desktop GUI. Leave blank for no password.
-      - PASSWORD=${CALIBRE_GUI_PASSWORD:-}
+      # GUI runs without auth (LAN + WARP-tunnel only). NOTE: setting PASSWORD
+      # here — even to an empty value — makes the image enable HTTP basic auth,
+      # so to keep the GUI open we omit the variable entirely rather than blank it.
 
   # Calibre-Web — the client-facing reader/OPDS UI. It serves the SAME library
   # that Calibre manages (shared volume below), so anything added in Calibre

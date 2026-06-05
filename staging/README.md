@@ -35,15 +35,15 @@ make staging-down            # destroy it all
 
 ### Reach the services (from the host)
 
-| Service     | URL                       | Profile |
-|-------------|---------------------------|---------|
-| Navidrome   | http://localhost:4533     | all     |
-| Copyparty   | http://localhost:3923     | all     | (admin / `staging`)
-| Calibre GUI | http://localhost:8080     | all     |
-| Calibre-Web | http://localhost:8083     | all     |
-| Caddy       | https://localhost:8443    | all     | (self-signed)
-| Immich      | http://localhost:2283     | full    |
-| Stremio     | http://localhost:11470    | full    |
+| Service     | URL                       | Profile | Login |
+|-------------|---------------------------|---------|-------|
+| Navidrome   | http://localhost:4533     | all     | admin / admin |
+| Copyparty   | http://localhost:3923     | all     | none |
+| Calibre GUI | http://localhost:8080     | all     | none |
+| Calibre-Web | http://localhost:8083     | all     | admin / admin123 |
+| Caddy       | https://localhost:8443    | all     | (self-signed) |
+| Immich      | http://localhost:2283     | full    | create on first run |
+| Stremio     | http://localhost:11470    | full    | none |
 
 Caddy serves by hostname (and selects its cert by TLS SNI), so test routing
 through it with `--resolve` rather than a `Host:` header:
