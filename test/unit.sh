@@ -112,6 +112,14 @@ assert_contains "create uses raid1 for data+metadata" "$out" "raid1"
 assert_contains "create mounts the pool at the storage root" "$out" "mount"
 assert_contains "create persists an fstab entry by UUID" "$out" "fstab"
 
+run_storage create-single >/dev/null 2>&1; st=$?
+assert_status "create-single requires exactly one device" 1 "$st"
+out=$(run_storage create-single /dev/sda); st=$?
+assert_status "create-single accepts one device in dry-run" 0 "$st"
+assert_contains "create-single issues mkfs.btrfs" "$out" "mkfs.btrfs"
+assert_contains "create-single uses single data + dup metadata" "$out" "-m dup -d single"
+assert_contains "create-single points to add for redundancy later" "$out" "add /dev/sdY"
+
 run_storage add >/dev/null 2>&1; st=$?
 assert_status "add requires exactly one device" 1 "$st"
 out=$(run_storage add /dev/sdd)

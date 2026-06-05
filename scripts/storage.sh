@@ -16,6 +16,9 @@ set -euo pipefail
 #   sudo ./scripts/storage.sh status                 show pool + devices + usage
 #   sudo ./scripts/storage.sh create /dev/sdX /dev/sdY [/dev/sdZ ...]
 #                                                    make a new RAID1 pool (WIPES disks)
+#   sudo ./scripts/storage.sh create-single /dev/sdX make a 1-disk pool now, no
+#                                                    redundancy yet (WIPES disk);
+#                                                    'add' a 2nd disk later -> RAID1
 #   sudo ./scripts/storage.sh add /dev/sdZ           add a disk and grow the pool
 #   sudo ./scripts/storage.sh remove /dev/sdZ        shrink the pool off a disk
 #   sudo ./scripts/storage.sh scrub                  verify + self-heal checksums
@@ -73,6 +76,26 @@ cmd_status() {
   fi
 }
 
+# _finish_pool <primary-dev> — mount the freshly made pool at ROOT and persist
+# it in /etc/fstab by UUID so it survives device reordering across reboots.
+# Shared by create (RAID1) and create-single.
+_finish_pool() {
+  local primary=$1
+  run mkdir -p "$ROOT"
+  run mount "$primary" "$ROOT"
+
+  if [[ "$DRY_RUN" == 1 ]]; then
+    printf '  [dry-run] add btrfs UUID mount for %s to /etc/fstab\n' "$ROOT"
+  else
+    local uuid
+    uuid=$(blkid -s UUID -o value "$primary")
+    if ! grep -q "$uuid" /etc/fstab 2>/dev/null; then
+      printf 'UUID=%s  %s  btrfs  defaults,compress=zstd:3  0 0\n' "$uuid" "$ROOT" >> /etc/fstab
+      log "Added $ROOT to /etc/fstab (UUID=$uuid)"
+    fi
+  fi
+}
+
 cmd_create() {
   require_root; require_btrfs
   [[ $# -ge 2 ]] || die "create needs at least two devices for RAID1, e.g. create /dev/sdb /dev/sdc"
@@ -87,21 +110,28 @@ cmd_create() {
 
   # -f to overwrite any stale signature; data+metadata both mirrored.
   run mkfs.btrfs -f -m raid1 -d raid1 "${devs[@]}"
-  run mkdir -p "$ROOT"
-  run mount "${devs[0]}" "$ROOT"
-
-  # Persist the mount by UUID so it survives device reordering across reboots.
-  if [[ "$DRY_RUN" == 1 ]]; then
-    printf '  [dry-run] add btrfs UUID mount for %s to /etc/fstab\n' "$ROOT"
-  else
-    local uuid
-    uuid=$(blkid -s UUID -o value "${devs[0]}")
-    if ! grep -q "$uuid" /etc/fstab 2>/dev/null; then
-      printf 'UUID=%s  %s  btrfs  defaults,compress=zstd:3  0 0\n' "$uuid" "$ROOT" >> /etc/fstab
-      log "Added $ROOT to /etc/fstab (UUID=$uuid)"
-    fi
-  fi
+  _finish_pool "${devs[0]}"
   log "Pool created. Point STORAGE_ROOT=$ROOT in the root .env, then ./scripts/manage.sh up"
+}
+
+cmd_create_single() {
+  require_root; require_btrfs
+  [[ $# -eq 1 ]] || die "create-single takes exactly one device, e.g. create-single /dev/sdb"
+  local dev=$1
+  log "About to create a single-disk btrfs pool on: $dev"
+  log "Mount point: $ROOT"
+  warn "$dev will be WIPED, and this pool has NO redundancy until you add a second disk."
+  confirm "Proceed?" || die "aborted"
+
+  assert_blank "$dev"
+
+  # Data is single-copy (no second disk to mirror to yet), but metadata is DUP
+  # so btrfs can still self-heal checksummed metadata on the one disk. Wire a
+  # second disk later and `storage.sh add` rebalances to full RAID1.
+  run mkfs.btrfs -f -m dup -d single "$dev"
+  _finish_pool "$dev"
+  log "Single-disk pool ready. Point STORAGE_ROOT=$ROOT in the root .env, then ./scripts/manage.sh up"
+  log "Add redundancy later: sudo ./scripts/storage.sh add /dev/sdY  (converts the pool to RAID1)"
 }
 
 cmd_add() {
@@ -153,6 +183,7 @@ shift || true
 case "$cmd" in
   status)  cmd_status "$@" ;;
   create)  cmd_create "$@" ;;
+  create-single) cmd_create_single "$@" ;;
   add)     cmd_add "$@" ;;
   remove)  cmd_remove "$@" ;;
   scrub)   cmd_scrub "$@" ;;
