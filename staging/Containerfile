@@ -1,0 +1,39 @@
+# Staging "server-in-a-box": one disposable, --privileged container that runs
+# its OWN rootful podman inside, brings up the selfhost compose stacks, and
+# tears down with a single `podman rm -f`. Build + run via `make staging-up`.
+#
+# This is NOT how the stack runs in production (that's rootless podman on a
+# real Arch host, set up by bootstrap.sh). It exists purely to boot the real
+# compose files in an isolated, throwaway environment you can click around in.
+FROM archlinux:latest
+
+# Tools to run podman-in-podman plus the repo's helper scripts.
+RUN pacman -Sy --needed --noconfirm \
+      podman podman-compose buildah \
+      fuse-overlayfs slirp4netns aardvark-dns netavark crun \
+      iptables-nft \
+      bash git curl wget jq tar findutils python python-yaml sed \
+ && pacman -Scc --noconfirm
+
+# Nested podman config: fuse-overlayfs (overlay-on-overlay), cgroupfs manager
+# (no systemd inside this container), netavark networking, and docker.io as the
+# default registry so the stacks' short image names resolve. Running rootful
+# podman inside a --privileged container avoids userns-mapping setup entirely.
+COPY staging/etc/containers.conf  /etc/containers/containers.conf
+COPY staging/etc/storage.conf     /etc/containers/storage.conf
+COPY staging/etc/registries.conf  /etc/containers/registries.conf
+
+# The selfhost repo. Copied in so the image is self-contained; bind-mount over
+# /opt/selfhost at run time (see Makefile) if you want live edits.
+WORKDIR /opt/selfhost
+COPY . /opt/selfhost
+
+# Pre-fetch the Immich compose template (bootstrap.sh does this on a real host)
+# so the `full` profile can boot without reaching upstream at run time.
+RUN mkdir -p compose/immich \
+ && curl -fL --retry 3 -o compose/immich/docker-compose.yml \
+      https://github.com/immich-app/immich/releases/latest/download/docker-compose.yml \
+ && curl -fL --retry 3 -o compose/immich/example.env \
+      https://github.com/immich-app/immich/releases/latest/download/example.env
+
+ENTRYPOINT ["/opt/selfhost/staging/entrypoint.sh"]
