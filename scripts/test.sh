@@ -21,7 +21,7 @@ note() { printf '\n=== %s ===\n' "$*"; }
 ok()   { printf '  ok: %s\n' "$*"; }
 bad()  { printf '  FAIL: %s\n' "$*"; fail=1; }
 
-scripts=(scripts/lib.sh scripts/storage.sh scripts/manage.sh scripts/backup.sh scripts/test.sh bootstrap.sh)
+scripts=(scripts/lib.sh scripts/storage.sh scripts/manage.sh scripts/backup.sh scripts/test.sh test/unit.sh bootstrap.sh)
 
 note "syntax (bash -n)"
 for f in "${scripts[@]}"; do
@@ -67,6 +67,9 @@ dry ./scripts/storage.sh add /dev/sdZ
 dry ./scripts/manage.sh up
 dry ./scripts/manage.sh down
 dry ./scripts/manage.sh ps
+
+note "unit assertions"
+if bash test/unit.sh; then ok "unit suite"; else bad "unit suite"; fi
 
 if [[ $fail -eq 0 ]]; then
   printf '\nAll checks passed.\n'
