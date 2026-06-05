@@ -33,7 +33,9 @@ case "$cmd" in
   up|down|restart|pull)
     for d in $(services); do
       echo "==> $(basename "$d"): $cmd"
-      ( cd "$d" && run podman-compose "$cmd" $( [[ "$cmd" == up ]] && echo "-d" ) )
+      args=("$cmd")
+      [[ "$cmd" == up ]] && args+=("-d")
+      ( cd "$d" && run podman-compose "${args[@]}" )
     done
     ;;
   ps)

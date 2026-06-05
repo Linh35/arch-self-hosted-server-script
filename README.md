@@ -198,6 +198,38 @@ Supersonic/Feishin/Tempo on macOS and Linux — or use the web UI.
 
 Other subcommands: `down`, `restart`, `pull`, `ps`, `logs <service>`.
 
+## Testing
+
+The scripts are exercised without touching real disks, packages, or
+containers — every mutating command goes through a `DRY_RUN`-aware wrapper,
+so the suite just prints what *would* happen.
+
+```sh
+make test            # lint + compose validation + dry-run; runs anywhere
+make lint            # just bash -n + shellcheck
+make test-container  # build an Arch container and run the suite inside it
+```
+
+`make test` runs `bash -n` and shellcheck on every script, checks each
+compose file parses, and walks the bootstrap/storage/manage/backup code
+paths with `DRY_RUN=1`. It degrades gracefully when a tool is missing (it
+skips shellcheck if it isn't installed, for instance).
+
+`make test-container` builds `test/Containerfile` (Arch + the toolchain)
+and runs the suite in real Linux — the closest thing to the target host.
+On macOS it works through Podman's VM:
+
+```sh
+brew install podman
+podman machine init && podman machine start
+make test-container
+```
+
+`storage.sh create`/`add` can't be tested for real off the server (they
+need actual block devices and btrfs), so the suite only dry-runs their
+logic — live RAID changes happen on the Arch box itself. GitHub Actions
+runs the same suite on every push (`.github/workflows/ci.yml`).
+
 ## Backups
 
 `scripts/backup.sh` dumps Immich's Postgres, pauses the file-based

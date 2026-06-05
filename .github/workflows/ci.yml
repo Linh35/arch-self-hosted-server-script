@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    # Run the suite in a real Arch environment, matching the target OS.
+    container: archlinux:latest
+    steps:
+      # nodejs is needed by actions/checkout (a JS action) inside the container;
+      # the rest is the test toolchain.
+      - name: Install toolchain
+        run: |
+          pacman -Sy --needed --noconfirm \
+            nodejs bash shellcheck podman-compose python python-yaml \
+            btrfs-progs git curl jq findutils sudo
+
+      - uses: actions/checkout@v4
+
+      - name: Run test suite
+        run: |
+          useradd -m tester
+          echo 'tester ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/tester
+          chown -R tester:tester .
+          sudo -u tester bash scripts/test.sh

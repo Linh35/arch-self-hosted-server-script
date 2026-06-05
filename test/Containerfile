@@ -1,0 +1,20 @@
+# Arch container that runs the test suite in a real Linux environment.
+# Build + run via `test/run.sh` (or `make test-container`). Works the same
+# on Linux and on macOS through `podman machine`.
+FROM archlinux:latest
+
+RUN pacman -Sy --needed --noconfirm \
+      bash shellcheck podman-compose python python-yaml \
+      btrfs-progs git curl jq findutils sudo \
+ && pacman -Scc --noconfirm
+
+# Run as a normal user with sudo, matching how bootstrap.sh is meant to run
+# (it refuses to run as root). The dry-run paths never actually sudo.
+RUN useradd -m tester \
+ && echo 'tester ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/tester
+
+USER tester
+WORKDIR /home/tester/app
+COPY --chown=tester:tester . .
+
+CMD ["bash", "scripts/test.sh"]
