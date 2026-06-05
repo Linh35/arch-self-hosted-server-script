@@ -1,0 +1,18 @@
+[Unit]
+Description=Selfhost restic backup to offsite storage
+Documentation=file:%h/workspace/arch-self-hosted-server-script/systemd/README.md
+# Best-effort: only fire once the network is actually up.
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+# Adjust this path if your clone lives somewhere other than ~/workspace.
+ExecStart=%h/workspace/arch-self-hosted-server-script/scripts/backup.sh
+# restic and podman-compose live in the user's PATH; make sure the common
+# locations are present when run non-interactively by systemd.
+Environment=PATH=%h/.local/bin:%h/.npm-global/bin:/usr/local/bin:/usr/bin:/bin
+# Be gentle: backups should never starve the running services.
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7

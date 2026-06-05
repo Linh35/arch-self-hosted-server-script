@@ -1,0 +1,12 @@
+[Unit]
+Description=Nightly selfhost restic backup
+
+[Timer]
+# 03:30 local time, with up to 15 min of jitter to avoid a thundering herd.
+OnCalendar=*-*-* 03:30:00
+RandomizedDelaySec=900
+# If the machine was off at 03:30, run at next boot instead of skipping.
+Persistent=true
+
+[Install]
+WantedBy=timers.target
