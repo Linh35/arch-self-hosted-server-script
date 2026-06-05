@@ -43,20 +43,16 @@ done
 find compose -name '.env' -not -path '*/data/*' | while read -r f; do
   sed -i -E 's/^[[:space:]]*PUID=.*/PUID=0/; s/^[[:space:]]*PGID=.*/PGID=0/' "$f"
 done
-# copyparty's compose hard-requires a password; set (don't append) so the .env
-# has no duplicate key.
-if grep -q '^[[:space:]]*COPYPARTY_PASSWORD=' compose/copyparty/.env; then
-  sed -i 's/^[[:space:]]*COPYPARTY_PASSWORD=.*/COPYPARTY_PASSWORD=staging/' compose/copyparty/.env
-else
-  printf 'COPYPARTY_PASSWORD=staging\n' >> compose/copyparty/.env
-fi
+# Services are credential-free by design (copyparty anonymous, calibre GUI has no
+# PASSWORD env), so no secrets to seed. Navidrome auto-creates admin/admin via its
+# compose default. Calibre-Web keeps its built-in default (admin/admin123).
 
 # --- Per-stack start helpers ----------------------------------------------
 start_navidrome() { ( cd compose/navidrome && podman-compose up -d ); }
 start_copyparty() { ( cd compose/copyparty && podman-compose up -d ); }
 start_calibre()   { ( cd compose/calibre   && podman-compose up -d ); }
 start_caddy()     { ( cd compose/caddy      && podman-compose -f "$OV/caddy.staging.yml" up -d ); }
-start_stremio()   { ( cd compose/stremio    && podman-compose -f "$OV/stremio.staging.yml" up -d ); }
+start_stremio()   { ( cd compose/stremio    && podman-compose up -d ); }
 start_immich()    {
   ( cd compose/immich && [[ -f .env ]] || cp example.env .env; podman-compose up -d )
 }
@@ -79,12 +75,12 @@ podman ps --format '  {{.Names}}\t{{.Status}}\t{{.Ports}}' || true
 cat <<'EOF'
 
 [staging] Ready. From the HOST reach services on the mapped ports, e.g.:
-  Navidrome  http://localhost:4533
-  Copyparty  http://localhost:3923   (admin / staging)
-  Calibre    http://localhost:8080
-  Calibre-Web http://localhost:8083
-  Immich     http://localhost:2283   (full profile)
-  Stremio    http://localhost:11470  (full profile)
+  Navidrome  http://localhost:4533   (admin / admin)
+  Copyparty  http://localhost:3923   (no login)
+  Calibre    http://localhost:8080   (no login)
+  Calibre-Web http://localhost:8083  (admin / admin123)
+  Immich     http://localhost:2283   (full profile; create account on first run)
+  Stremio    http://localhost:8181   (full profile; browser UI, no login)
   Caddy      https://localhost:8443  (self-signed; curl --resolve <svc>.localhost:8443:127.0.0.1)
 
 Shell in:   make staging-sh        Tear down:  make staging-down

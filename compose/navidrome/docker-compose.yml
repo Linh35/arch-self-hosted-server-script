@@ -18,3 +18,7 @@ services:
       - ND_MUSICFOLDER=/music
       - ND_DATAFOLDER=/data
       - ND_SCANSCHEDULE=1h
+      # Navidrome has no anonymous mode, so auto-create the admin on first run
+      # (skips the setup wizard). LAN + WARP-tunnel only; override the password
+      # in compose/navidrome/.env. Login: admin / <ND admin password>.
+      - ND_DEVAUTOCREATEADMINPASSWORD=${NAVIDROME_ADMIN_PASSWORD:-admin}

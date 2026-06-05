@@ -6,7 +6,7 @@ set -euo pipefail
 # can hit the services directly. Tear everything down with `make staging-down`.
 #
 #   PROFILE=lite   (default) caddy + navidrome + copyparty + calibre
-#   PROFILE=full            adds immich + a VPN-stubbed stremio
+#   PROFILE=full            adds immich + stremio
 #
 # Usage: bash staging/run.sh   |   PROFILE=full bash staging/run.sh
 
@@ -28,7 +28,7 @@ echo "==> starting $NAME (profile: $PROFILE)"
 podman run -d --name "$NAME" --privileged \
   -e PROFILE="$PROFILE" \
   -p 4533:4533 -p 3923:3923 -p 8080:8080 -p 8081:8081 -p 8083:8083 \
-  -p 2283:2283 -p 11470:11470 -p 12470:12470 \
+  -p 2283:2283 -p 8181:8181 -p 11470:11470 -p 12470:12470 \
   -p 8088:80 -p 8443:443 \
   "$IMG"
 

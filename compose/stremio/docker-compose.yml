@@ -1,39 +1,24 @@
 services:
-  gluetun:
-    image: qmcgaw/gluetun:latest
-    container_name: gluetun
-    cap_add:
-      - NET_ADMIN
-    devices:
-      - /dev/net/tun:/dev/net/tun
-    ports:
-      # Stremio server HTTP + HTTPS, exposed via gluetun's namespace.
-      - "11470:11470"
-      - "12470:12470"
-    volumes:
-      - ${STORAGE_ROOT:-../../data}/gluetun:/gluetun
-    environment:
-      - TZ=${TZ:-UTC}
-      - VPN_SERVICE_PROVIDER=${VPN_SERVICE_PROVIDER:?set in .env}
-      - VPN_TYPE=${VPN_TYPE:-wireguard}
-      - WIREGUARD_PRIVATE_KEY=${WIREGUARD_PRIVATE_KEY:-}
-      - WIREGUARD_ADDRESSES=${WIREGUARD_ADDRESSES:-}
-      - OPENVPN_USER=${OPENVPN_USER:-}
-      - OPENVPN_PASSWORD=${OPENVPN_PASSWORD:-}
-      - SERVER_COUNTRIES=${SERVER_COUNTRIES:-}
-      - SERVER_CITIES=${SERVER_CITIES:-}
-      # Allow LAN devices to reach the Stremio server through gluetun.
-      - FIREWALL_OUTBOUND_SUBNETS=${LAN_SUBNETS:-192.168.0.0/16,10.0.0.0/8}
+  # Stremio — browse movies/shows in a browser, find torrents (via the Torrentio
+  # addon), and stream them on the fly. This image bundles BOTH the web UI (:8080)
+  # and the streaming server (:11470/:12470) that actually pulls the torrents.
+  #
+  # NO VPN: torrent traffic exits on this host's public IP. If that's a concern,
+  # wrap this in gluetun (see git history for the VPN variant).
+  stremio:
+    image: tsaridas/stremio-docker:latest
+    container_name: stremio
     restart: unless-stopped
-
-  stremio-server:
-    image: stremio/server:latest
-    container_name: stremio-server
-    network_mode: "service:gluetun"
-    depends_on:
-      - gluetun
+    ports:
+      - "8181:8080"     # web UI — browse + watch in a browser
+      - "11470:11470"   # streaming server (HTTP)
+      - "12470:12470"   # streaming server (HTTPS)
     volumes:
       - ${STORAGE_ROOT:-../../data}/stremio:/root/.stremio-server
     environment:
+      - TZ=${TZ:-UTC}
       - NO_CORS=1
-    restart: unless-stopped
+      # Set to the server's LAN IP so the web UI auto-points the streaming
+      # server at this box (not the browser's own localhost).
+      - IPADDRESS=${STREMIO_IP:-}
+      - AUTO_SERVER_URL=1
