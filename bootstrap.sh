@@ -24,6 +24,20 @@ run sudo pacman -S --needed --noconfirm \
   btrfs-progs \
   restic git curl jq wget tar
 
+log "Ensuring Docker Hub is searched for unqualified image names"
+# Several compose images use short names (deluan/navidrome, copyparty/ac). Arch's
+# default registries.conf has no unqualified-search-registries, so podman can't
+# resolve them. Add a user-level config (rootless) that points short names at
+# Docker Hub, unless the system already defines a search list.
+if [[ "$DRY_RUN" == 1 ]]; then
+  log "  [dry-run] would write ~/.config/containers/registries.conf (unqualified-search-registries=docker.io)"
+elif ! podman info --format '{{.Registries.search}}' 2>/dev/null | grep -q docker.io; then
+  mkdir -p "$HOME/.config/containers"
+  printf 'unqualified-search-registries = ["docker.io"]\n' \
+    > "$HOME/.config/containers/registries.conf"
+  log "  wrote ~/.config/containers/registries.conf"
+fi
+
 log "Enabling lingering and rootless podman services"
 run sudo loginctl enable-linger "${USER:-$(id -un)}"
 run systemctl --user daemon-reload

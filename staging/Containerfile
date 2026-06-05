@@ -11,9 +11,14 @@ FROM archlinux:latest
 RUN pacman -Sy --needed --noconfirm \
       podman podman-compose buildah \
       fuse-overlayfs slirp4netns aardvark-dns netavark crun \
-      iptables-nft \
+      iptables-nft tzdata \
       bash git curl wget jq tar findutils python python-yaml sed \
  && pacman -Scc --noconfirm
+
+# Immich's compose bind-mounts /etc/localtime read-only; the Arch base has none,
+# so podman would auto-create it as a directory and the mount fails ("Not a
+# directory"). Give it a real symlink so immich_server starts.
+RUN ln -sf /usr/share/zoneinfo/UTC /etc/localtime
 
 # Nested podman config: fuse-overlayfs (overlay-on-overlay), cgroupfs manager
 # (no systemd inside this container), netavark networking, and docker.io as the
