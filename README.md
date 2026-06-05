@@ -214,15 +214,16 @@ to resolve to the server's **LAN** IP — pick one:
 
 **TLS modes:**
 
-- *Default — internal CA.* HTTPS works immediately with no setup, but the
-  cert isn't publicly trusted. Install Caddy's root CA (written under
-  `$STORAGE_ROOT/caddy/data`) on your devices to silence warnings.
-- *Publicly-trusted — Cloudflare DNS.* Recommended once you have a domain on
-  Cloudflare (no warnings, e.g. for Amperfy on iOS). In
-  `compose/caddy/Caddyfile`, swap the `(tls)` snippet from `tls internal` to
-  the commented `dns cloudflare` block, and set `CLOUDFLARE_API_TOKEN` (a
-  scoped token with Zone:Read + DNS:Edit) in `compose/caddy/.env`. The DNS-01
-  challenge needs no inbound ports, so it still works with nothing public.
+- *Default — Cloudflare DNS (publicly trusted).* No browser warnings (works
+  for Amperfy on iOS, etc.). Needs a domain on Cloudflare and
+  `CLOUDFLARE_API_TOKEN` (a scoped token with Zone:Read + DNS:Edit) in
+  `compose/caddy/.env`. The DNS-01 challenge needs no inbound ports, so it
+  still works with nothing public.
+- *Fallback — internal CA.* No Cloudflare or offline? In
+  `compose/caddy/Caddyfile`, swap the `(tls)` snippet from the `dns cloudflare`
+  block to `tls internal`. HTTPS works with zero external dependency, but
+  install Caddy's root CA (written under `$STORAGE_ROOT/caddy/data`) on your
+  devices to silence warnings.
 
 If `host.containers.internal` doesn't resolve in your podman networking, set
 `UPSTREAM_HOST` to the server's LAN IP in `compose/caddy/.env`.

@@ -195,8 +195,8 @@ for pair in "music:4533" "photos:2283" "files:3923" "books:8080" "read:8083"; do
   fi
 done
 
-if grep -q 'tls internal' "$cf"; then ok "Caddyfile defaults to the internal CA"; else no "Caddyfile defaults to the internal CA"; fi
-if grep -q 'dns cloudflare' "$cf"; then ok "Caddyfile documents the Cloudflare DNS upgrade"; else no "Caddyfile documents the Cloudflare DNS upgrade"; fi
+if grep -Eq '^[[:space:]]+dns cloudflare' "$cf"; then ok "Caddyfile defaults to publicly-trusted Cloudflare DNS certs"; else no "Caddyfile defaults to publicly-trusted Cloudflare DNS certs"; fi
+if grep -Eq '^[[:space:]]*#[[:space:]]*tls internal' "$cf"; then ok "Caddyfile documents the internal-CA fallback"; else no "Caddyfile documents the internal-CA fallback"; fi
 if grep -q 'reverse_proxy {$UPSTREAM_HOST}' "$cf"; then ok "Caddyfile proxies via the configurable upstream host"; else no "Caddyfile proxies via the configurable upstream host"; fi
 
 cc=compose/caddy/docker-compose.yml

@@ -3,20 +3,22 @@
 # environment (compose/caddy/.env).
 
 # --- TLS mode -------------------------------------------------------------
-# Default: Caddy's built-in CA. HTTPS works immediately with no external
-# dependency, but the cert isn't publicly trusted — install Caddy's root CA
-# (it writes it to /data) on your devices to silence browser warnings.
+# Default: publicly-trusted certs via the Cloudflare DNS-01 challenge. No
+# browser warnings (works for Amperfy on iOS, etc.), and it needs no inbound
+# ports, so it still works even though nothing is published publicly. Requires
+# a domain on Cloudflare and CLOUDFLARE_API_TOKEN in compose/caddy/.env (a
+# scoped token with Zone:Read + DNS:Edit).
 #
-# To get PUBLICLY-TRUSTED certs instead (recommended once you have a domain on
-# Cloudflare): comment out `tls internal` below and uncomment the Cloudflare
-# DNS block, then set CLOUDFLARE_API_TOKEN in compose/caddy/.env. The DNS-01
-# challenge needs no inbound ports, so it works even though nothing is public.
+# No Cloudflare / offline? Comment out the `tls` block below and uncomment
+# `tls internal` to fall back to Caddy's built-in CA — HTTPS with zero
+# external dependency, but install Caddy's root (written to /data) on your
+# devices to silence warnings.
 (tls) {
-	tls internal
-	# tls {
-	# 	dns cloudflare {$CLOUDFLARE_API_TOKEN}
-	# 	resolvers 1.1.1.1
-	# }
+	tls {
+		dns cloudflare {$CLOUDFLARE_API_TOKEN}
+		resolvers 1.1.1.1
+	}
+	# tls internal
 }
 
 # Shared per-site setup: TLS as configured above, plus response compression.
