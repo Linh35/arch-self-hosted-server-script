@@ -33,6 +33,15 @@ if [[ "$DRY_RUN" == 1 ]] || systemctl --user list-unit-files podman-restart.serv
   run systemctl --user enable --now podman-restart.service
 fi
 
+log "Allowing rootless binds to :80/:443 (for the Caddy reverse proxy)"
+if [[ "$DRY_RUN" == 1 ]]; then
+  log "  [dry-run] would set net.ipv4.ip_unprivileged_port_start=80 via /etc/sysctl.d"
+else
+  echo 'net.ipv4.ip_unprivileged_port_start=80' \
+    | sudo tee /etc/sysctl.d/99-selfhost-ports.conf >/dev/null
+  sudo sysctl -w net.ipv4.ip_unprivileged_port_start=80 >/dev/null
+fi
+
 log "Installing cloudflared"
 if [[ "$DRY_RUN" == 1 ]] || ! command -v cloudflared >/dev/null; then
   case "$(uname -m)" in

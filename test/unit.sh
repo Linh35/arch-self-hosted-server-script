@@ -138,6 +138,7 @@ assert_status "up succeeds in dry-run" 0 "$st"
 assert_contains "up calls podman-compose" "$out" "podman-compose"
 assert_contains "up runs detached (-d)" "$out" "-d"
 assert_contains "up iterates the navidrome stack" "$out" "navidrome"
+assert_contains "up iterates the caddy proxy stack" "$out" "caddy"
 
 out=$(run_manage down)
 assert_not_contains "down does not pass -d" "$out" "podman-compose down -d"
@@ -158,6 +159,7 @@ assert_status "bootstrap completes in dry-run" 0 "$st"
 assert_contains "bootstrap installs packages" "$out" "Installing packages"
 assert_contains "bootstrap installs cloudflared" "$out" "Installing cloudflared"
 assert_contains "bootstrap seeds .env files" "$out" ".env"
+assert_contains "bootstrap enables rootless low-port binds" "$out" "ip_unprivileged_port_start"
 
 # ---------------------------------------------------------------------------
 section "backup.sh: guards"
@@ -179,6 +181,28 @@ if grep -q '/music:/music:ro' compose/navidrome/docker-compose.yml; then
 else
   no "navidrome mounts the music library read-only"
 fi
+
+# ---------------------------------------------------------------------------
+section "caddy: reverse proxy"
+
+cf=compose/caddy/Caddyfile
+for pair in "music:4533" "photos:2283" "files:3923" "books:8080" "read:8083"; do
+  host=${pair%%:*} port=${pair##*:}
+  if grep -q "^${host}.{\$DOMAIN}" "$cf" && grep -q "${port}" "$cf"; then
+    ok "Caddyfile routes ${host}.\$DOMAIN to :${port}"
+  else
+    no "Caddyfile routes ${host}.\$DOMAIN to :${port}"
+  fi
+done
+
+if grep -q 'tls internal' "$cf"; then ok "Caddyfile defaults to the internal CA"; else no "Caddyfile defaults to the internal CA"; fi
+if grep -q 'dns cloudflare' "$cf"; then ok "Caddyfile documents the Cloudflare DNS upgrade"; else no "Caddyfile documents the Cloudflare DNS upgrade"; fi
+if grep -q 'reverse_proxy {$UPSTREAM_HOST}' "$cf"; then ok "Caddyfile proxies via the configurable upstream host"; else no "Caddyfile proxies via the configurable upstream host"; fi
+
+cc=compose/caddy/docker-compose.yml
+if grep -q 'host.containers.internal:host-gateway' "$cc"; then ok "caddy compose maps the host gateway"; else no "caddy compose maps the host gateway"; fi
+if grep -Eq '"(80|443):(80|443)"' "$cc"; then ok "caddy compose publishes :80/:443"; else no "caddy compose publishes :80/:443"; fi
+if grep -q 'CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN:-}' "$cc"; then ok "caddy compose keeps the Cloudflare token optional"; else no "caddy compose keeps the Cloudflare token optional"; fi
 
 # ---------------------------------------------------------------------------
 printf '\n=== %d passed, %d failed ===\n' "$pass" "$fail"
