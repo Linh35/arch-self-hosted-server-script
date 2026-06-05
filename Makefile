@@ -1,11 +1,14 @@
-.PHONY: help test lint test-container
+.PHONY: help test unit lint test-container
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
 	  awk 'BEGIN{FS=":.*?## "}{printf "  %-16s %s\n", $$1, $$2}'
 
-test: ## Run the full suite locally (lint + compose + dry-run); runs anywhere
+test: ## Run the full suite locally (lint + compose + dry-run + unit); runs anywhere
 	@bash scripts/test.sh
+
+unit: ## Just the assertion-based unit tests (test/unit.sh)
+	@bash test/unit.sh
 
 lint: ## Just the linters: bash -n + shellcheck (if installed)
 	@bash -n scripts/*.sh bootstrap.sh && echo "syntax ok"
