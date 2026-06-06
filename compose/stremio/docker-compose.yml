@@ -15,11 +15,6 @@ services:
       - "12470:12470"   # streaming server (HTTPS)
     volumes:
       - ${STORAGE_ROOT:-../../data}/stremio:/root/.stremio-server
-      # Pre-installs the default addons + Torrentio on a fresh browser session
-      # (injected into the web UI's localStorage on first load). Edit the list
-      # in localStorage.json. Only seeds browsers with no Stremio profile yet;
-      # an existing session installs Torrentio from the Addons tab instead.
-      - ./localStorage.json:/srv/stremio-server/build/localStorage.json:ro
     environment:
       - TZ=${TZ:-UTC}
       - NO_CORS=1
