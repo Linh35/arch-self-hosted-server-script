@@ -56,3 +56,29 @@ read.{$DOMAIN} {
 	import site
 	reverse_proxy {$UPSTREAM_HOST}:8083   # Calibre-Web
 }
+
+# --- *arr stack -----------------------------------------------------------
+prowlarr.{$DOMAIN} {
+	import site
+	reverse_proxy {$UPSTREAM_HOST}:9696   # Prowlarr (indexer manager)
+}
+
+radarr.{$DOMAIN} {
+	import site
+	reverse_proxy {$UPSTREAM_HOST}:7878   # Radarr (movies)
+}
+
+sonarr.{$DOMAIN} {
+	import site
+	reverse_proxy {$UPSTREAM_HOST}:8989   # Sonarr (TV)
+}
+
+bazarr.{$DOMAIN} {
+	import site
+	reverse_proxy {$UPSTREAM_HOST}:6767   # Bazarr (subtitles)
+}
+
+qbit.{$DOMAIN} {
+	import site
+	reverse_proxy {$UPSTREAM_HOST}:8088   # qBittorrent (via gluetun)
+}
