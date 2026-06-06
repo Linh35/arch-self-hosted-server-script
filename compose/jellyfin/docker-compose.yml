@@ -13,6 +13,12 @@ services:
     restart: unless-stopped
     ports:
       - "8096:8096"                  # web UI / HTTP API
+    # Intel QuickSync hardware transcoding — needed to transcode 4K HEVC/HDR/DV
+    # for clients like iPhone (software transcode is too slow and playback
+    # fails with "unable to find media source"). renderD128 is world-rw so the
+    # rootless container can use it without extra group membership.
+    devices:
+      - /dev/dri/renderD128:/dev/dri/renderD128
     volumes:
       - ${STORAGE_ROOT:-../../data}/jellyfin/config:/config
       - /mnt/storage/data:/data:ro   # media library (same path the *arr stack writes to)
@@ -20,6 +26,3 @@ services:
       - PUID=${PUID:-0}
       - PGID=${PGID:-0}
       - TZ=${TZ:-UTC}
-      # Hardware transcoding (Intel QSV/VAAPI) is off by default. To enable it,
-      # add `devices: [/dev/dri:/dev/dri]` and the render group — see Jellyfin's
-      # docs. Software transcoding works without it.

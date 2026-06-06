@@ -1,0 +1,16 @@
+services:
+  # Stirling-PDF — self-hosted PDF toolbox (merge, split, OCR, convert, sign,
+  # compress, ...). Everything runs locally; nothing leaves the box. Reach it
+  # at pdf.<domain> or http://<server-ip>:8084.
+  stirling-pdf:
+    image: docker.io/stirlingtools/stirling-pdf:latest
+    container_name: stirling-pdf
+    restart: unless-stopped
+    ports:
+      - "8084:8080"
+    volumes:
+      - ${STORAGE_ROOT:-../../data}/stirling-pdf/configs:/configs
+      - ${STORAGE_ROOT:-../../data}/stirling-pdf/data:/usr/share/tessdata
+    environment:
+      - TZ=${TZ:-UTC}
+      - DOCKER_ENABLE_SECURITY=false

@@ -1,0 +1,15 @@
+services:
+  # Homarr — a dashboard / homepage for the whole stack. Add tiles for each
+  # service (Jellyfin, Jellyseerr, *arr, Immich, etc.). Reach it at home.<domain>.
+  homarr:
+    image: ghcr.io/homarr-labs/homarr:latest
+    container_name: homarr
+    restart: unless-stopped
+    ports:
+      - "7575:7575"
+    volumes:
+      - ${STORAGE_ROOT:-../../data}/homarr/appdata:/appdata
+    environment:
+      - TZ=${TZ:-UTC}
+      # 64-char hex. Generate with: openssl rand -hex 32
+      - SECRET_ENCRYPTION_KEY=${HOMARR_SECRET_ENCRYPTION_KEY:-}

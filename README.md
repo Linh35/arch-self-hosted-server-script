@@ -25,6 +25,8 @@ Trust org — so the tunnel acts as a VPN, not a public front door.
 | Jellyfin         | 8096    | `movies.<domain>`    | LAN / WARP tunnel         |
 | Jellyseerr       | 5055    | `dl-movies.<domain>`  | LAN / WARP tunnel         |
 | AppFlowy         | 9000    | `flowy.<domain>`     | LAN / WARP tunnel         |
+| Homarr           | 7575    | `home.<domain>`      | LAN / WARP tunnel         |
+| Stirling-PDF     | 8084    | `pdf.<domain>`       | LAN / WARP tunnel         |
 
 Caddy puts a clean name and HTTPS in front of each service, so you reach
 them at `https://music.<domain>` instead of `http://<server-ip>:4533`. The
