@@ -57,7 +57,7 @@ read.{$DOMAIN} {
 	reverse_proxy {$UPSTREAM_HOST}:8083   # Calibre-Web-Automated (CWA)
 }
 
-books-dl.{$DOMAIN} {
+dl-books.{$DOMAIN} {
 	import site
 	reverse_proxy {$UPSTREAM_HOST}:8085   # CWA book downloader
 }
