@@ -1,16 +1,16 @@
 services:
-  # qBittorrent — NO VPN: torrent traffic exits directly on the host's IP
-  # (same as Stremio). To tunnel it through a VPN later, re-add a gluetun
-  # service and set qbittorrent's `network_mode: "service:gluetun"` (moving
-  # the ports below onto the gluetun service).
+  # qBittorrent — NO VPN: torrent traffic exits directly on the host's IP.
+  # Uses HOST networking: under rootless podman's bridge (pasta), qBittorrent's
+  # fixed-source-port UDP got no return traffic, so DHT stayed at 0 nodes and
+  # UDP trackers were never contacted -> 0 peers, nothing downloads. On the host
+  # netns it behaves like a native client. WebUI is on 8088, torrent port 6881
+  # (both bound directly on the host; no port mapping with host networking).
+  # To tunnel through a VPN later, drop network_mode and route via gluetun.
   qbittorrent:
     image: lscr.io/linuxserver/qbittorrent:latest
     container_name: qbittorrent
     restart: unless-stopped
-    ports:
-      - "8088:8080"            # Web UI
-      - "6881:6881"            # torrent port (TCP)
-      - "6881:6881/udp"        # torrent port (UDP)
+    network_mode: host
     volumes:
       - ${STORAGE_ROOT:-../../data}/arr/qbittorrent/config:/config
       - /mnt/storage/data:/data       # downloads + library on the HDD (hardlinks)
@@ -18,7 +18,7 @@ services:
       - PUID=${PUID:-0}
       - PGID=${PGID:-0}
       - TZ=${TZ:-UTC}
-      - WEBUI_PORT=8080
+      - WEBUI_PORT=8088
 
   prowlarr:
     image: lscr.io/linuxserver/prowlarr:latest
