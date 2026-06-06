@@ -32,7 +32,6 @@ Trust org — so the tunnel acts as a VPN, not a public front door.
 | SpotiFLAC-web    | 7233    | `flac.<domain>`      | LAN / WARP tunnel         |
 | Lidarr           | 8686    | `lidarr.<domain>`    | LAN / WARP tunnel         |
 | slskd (Soulseek) | 5030    | `slskd.<domain>`     | LAN / WARP tunnel         |
-| SillyTavern      | 8000    | `tavern.<domain>`    | LAN / WARP tunnel         |
 
 Caddy puts a clean name and HTTPS in front of each service, so you reach
 them at `https://music.<domain>` instead of `http://<server-ip>:4533`. The

@@ -107,11 +107,6 @@ slskd.{$DOMAIN} {
 	reverse_proxy {$UPSTREAM_HOST}:5030   # slskd (Soulseek)
 }
 
-tavern.{$DOMAIN} {
-	import site
-	reverse_proxy {$UPSTREAM_HOST}:8000   # SillyTavern
-}
-
 # --- *arr stack -----------------------------------------------------------
 prowlarr.{$DOMAIN} {
 	import site
