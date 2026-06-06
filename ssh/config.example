@@ -1,0 +1,14 @@
+# SSH client config for reaching this server.
+#
+# WARP-to-Tunnel (this repo's default): once the Cloudflare WARP client is
+# connected — or you're on the LAN — the server's LAN address is reachable
+# directly. No entry below is needed, just:  ssh <user>@<server-ip>
+#
+# Optional: if you instead expose SSH through a PROXIED public hostname
+# (orange-cloud, ssh:// ingress in cloudflared), a plain client dials the
+# Cloudflare edge on port 22 and hangs. Wrap it in cloudflared access:
+
+Host ssh.<domain>
+  User <user>
+  IdentityFile ~/.ssh/id_ed25519
+  ProxyCommand cloudflared access ssh --hostname %h
