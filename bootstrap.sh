@@ -21,7 +21,7 @@ log "Installing packages"
 run sudo pacman -S --needed --noconfirm \
   podman podman-compose \
   fuse-overlayfs slirp4netns aardvark-dns netavark \
-  btrfs-progs \
+  btrfs-progs ufw \
   restic git curl jq wget tar
 
 log "Ensuring Docker Hub is searched for unqualified image names"
@@ -36,6 +36,23 @@ elif ! podman info --format '{{.Registries.search}}' 2>/dev/null | grep -q docke
   printf 'unqualified-search-registries = ["docker.io"]\n' \
     > "$HOME/.config/containers/registries.conf"
   log "  wrote ~/.config/containers/registries.conf"
+fi
+
+log "Configuring the host firewall (ufw): allow SSH + the LAN, deny the rest"
+# Without this, ufw's default deny-incoming silently drops every connection from
+# other devices (services only answer on localhost). Allow SSH explicitly so we
+# never lock out, then trust the LAN subnet (the access perimeter). WARP-tunnelled
+# traffic arrives from the host's own LAN IP, so it's covered too.
+lan_cidr=$(ip route show 2>/dev/null | awk '/proto kernel scope link/ {print $1; exit}')
+if [[ "$DRY_RUN" == 1 ]]; then
+  log "  [dry-run] would: ufw allow 22/tcp; ufw allow from <LAN CIDR>; ufw --force enable"
+elif [[ -n "$lan_cidr" ]]; then
+  sudo ufw allow 22/tcp >/dev/null
+  sudo ufw allow from "$lan_cidr" >/dev/null
+  sudo ufw --force enable >/dev/null
+  log "  ufw enabled (SSH + $lan_cidr allowed)"
+else
+  warn "couldn't detect the LAN subnet; left ufw untouched. Configure it by hand."
 fi
 
 log "Enabling lingering and rootless podman services"
