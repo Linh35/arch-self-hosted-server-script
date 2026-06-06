@@ -1,0 +1,17 @@
+services:
+  # Jellyseerr — request & discovery UI (Overseerr fork for Jellyfin). Browse
+  # movies/shows and request them; it hands off to Radarr/Sonarr, which grab
+  # via Prowlarr + qBittorrent into the library Jellyfin serves. It talks to
+  # Jellyfin and the *arr apps over their APIs, so it needs no media mount.
+  # Reach it at requests.<domain> or :5055.
+  jellyseerr:
+    image: docker.io/fallenbagel/jellyseerr:latest
+    container_name: jellyseerr
+    restart: unless-stopped
+    ports:
+      - "5055:5055"
+    volumes:
+      - ${STORAGE_ROOT:-../../data}/jellyseerr/config:/app/config
+    environment:
+      - TZ=${TZ:-UTC}
+      - LOG_LEVEL=info

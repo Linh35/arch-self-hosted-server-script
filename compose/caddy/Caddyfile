@@ -64,7 +64,12 @@ rss.{$DOMAIN} {
 
 movies.{$DOMAIN} {
 	import site
-	reverse_proxy {$UPSTREAM_HOST}:8181   # Stremio web UI (streaming stays direct on :11470/:12470)
+	reverse_proxy {$UPSTREAM_HOST}:8096   # Jellyfin
+}
+
+requests.{$DOMAIN} {
+	import site
+	reverse_proxy {$UPSTREAM_HOST}:5055   # Jellyseerr
 }
 
 # --- *arr stack -----------------------------------------------------------

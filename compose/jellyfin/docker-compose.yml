@@ -1,0 +1,25 @@
+services:
+  # Jellyfin — self-hosted media server with a web player + native apps and
+  # on-the-fly transcoding. It STREAMS the library the *arr stack downloads
+  # into /mnt/storage/data (movies, tv, ...), mounted read-only here since the
+  # *arr apps own writing to it. Reach it at movies.<domain> or :8096.
+  #
+  # PUID/PGID must match the *arr stack (compose/arr) so Jellyfin can read the
+  # shared library — this deployment runs both as 0 (root → your host user
+  # under rootless podman).
+  jellyfin:
+    image: lscr.io/linuxserver/jellyfin:latest
+    container_name: jellyfin
+    restart: unless-stopped
+    ports:
+      - "8096:8096"                  # web UI / HTTP API
+    volumes:
+      - ${STORAGE_ROOT:-../../data}/jellyfin/config:/config
+      - /mnt/storage/data:/data:ro   # media library (same path the *arr stack writes to)
+    environment:
+      - PUID=${PUID:-0}
+      - PGID=${PGID:-0}
+      - TZ=${TZ:-UTC}
+      # Hardware transcoding (Intel QSV/VAAPI) is off by default. To enable it,
+      # add `devices: [/dev/dri:/dev/dri]` and the render group — see Jellyfin's
+      # docs. Software transcoding works without it.
