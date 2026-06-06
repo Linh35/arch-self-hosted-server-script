@@ -4,10 +4,10 @@ services:
   # photos.<domain>, ...) over HTTPS. It terminates TLS and reverse-proxies
   # to each service's published port on the host.
   #
-  # TLS: defaults to Caddy's built-in CA (see Caddyfile) so HTTPS works on the
-  # LAN with zero external setup. To get publicly-trusted certs (no browser
-  # warnings, e.g. for Amperfy on iOS), set CLOUDFLARE_API_TOKEN below and flip
-  # the (tls) snippet in the Caddyfile to the Cloudflare DNS challenge.
+  # TLS: defaults to publicly-trusted certs via the Cloudflare DNS-01 challenge
+  # (see Caddyfile) so there are no browser warnings (e.g. for Amperfy on iOS).
+  # Requires CLOUDFLARE_API_TOKEN below. No Cloudflare / offline? Flip the (tls)
+  # snippet in the Caddyfile to `tls internal` for Caddy's built-in CA instead.
   caddy:
     build:
       context: .
@@ -39,7 +39,8 @@ services:
     environment:
       - DOMAIN=${DOMAIN:-localhost}
       - UPSTREAM_HOST=${UPSTREAM_HOST:-host.containers.internal}
-      # Only used when the Caddyfile (tls) snippet is set to the Cloudflare DNS
-      # challenge. Harmless to leave blank for the default internal-CA mode.
+      # Required for the default TLS mode (Cloudflare DNS-01 challenge in the
+      # Caddyfile). Only safe to leave blank if you switch that snippet to
+      # `tls internal`.
       - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN:-}
       - TZ=${TZ:-UTC}

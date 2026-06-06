@@ -128,10 +128,11 @@ Then fill in:
 
 - `.env` — set `STORAGE_ROOT` to your pool mount (or leave it commented for
   `data/`), plus `DOMAIN`/`TZ` if needed.
-- `compose/copyparty/.env` — set `COPYPARTY_PASSWORD`. Required.
+- `compose/copyparty/.env` — no secret needed; Copyparty runs anonymously (read/write on the LAN/tunnel).
 - `compose/immich/.env` — set `DB_PASSWORD`, and `UPLOAD_LOCATION` to
   `$STORAGE_ROOT/immich`.
-- `compose/calibre/.env` — optional `CALIBRE_GUI_PASSWORD`.
+- `compose/calibre/.env` — no secret needed; the GUI runs without auth. Add
+  `PASSWORD`/`USER` to the calibre service in docker-compose.yml to lock it.
 - `compose/caddy/.env` — set `DOMAIN` for the service names; optionally
   `UPSTREAM_HOST` or `CLOUDFLARE_API_TOKEN` (see Reverse proxy below).
 
