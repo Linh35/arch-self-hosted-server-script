@@ -85,7 +85,7 @@ bazarr.{$DOMAIN} {
 
 qbit.{$DOMAIN} {
 	import site
-	reverse_proxy {$UPSTREAM_HOST}:8088   # qBittorrent (via gluetun)
+	reverse_proxy {$UPSTREAM_HOST}:8088   # qBittorrent
 }
 
 # --- AppFlowy -------------------------------------------------------------
