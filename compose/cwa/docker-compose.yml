@@ -1,0 +1,36 @@
+services:
+  # Calibre-Web-Automated — upgraded Calibre-Web that AUTO-IMPORTS anything
+  # dropped into the ingest folder into your Calibre library, converts formats,
+  # and serves the reader UI. Replaces the plain calibre-web service. Uses the
+  # SAME on-disk library as the Calibre desktop GUI.
+  cwa:
+    image: crocodilestick/calibre-web-automated:latest
+    container_name: cwa
+    restart: unless-stopped
+    ports:
+      - "8083:8083"
+    volumes:
+      - ${STORAGE_ROOT:-../../data}/cwa/config:/config
+      - /mnt/storage/calibre/library:/calibre-library
+      - ${STORAGE_ROOT:-../../data}/cwa/ingest:/cwa-book-ingest   # downloader drops here -> auto-imported
+    environment:
+      - PUID=${PUID:-0}
+      - PGID=${PGID:-0}
+      - TZ=${TZ:-UTC}
+
+  # Book downloader — searches Anna's Archive / libgen and downloads ebooks
+  # into the CWA ingest folder (which CWA then imports into the library).
+  cwa-book-downloader:
+    image: ghcr.io/calibrain/calibre-web-automated-book-downloader:latest
+    container_name: cwa-book-downloader
+    restart: unless-stopped
+    ports:
+      - "8085:8084"
+    volumes:
+      - ${STORAGE_ROOT:-../../data}/cwa/ingest:/cwa-book-ingest
+    environment:
+      - TZ=${TZ:-UTC}
+      - UID=${PUID:-0}
+      - GID=${PGID:-0}
+      - INGEST_DIR=/cwa-book-ingest
+      - BOOK_LANGUAGE=en

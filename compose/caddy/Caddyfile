@@ -54,7 +54,17 @@ books.{$DOMAIN} {
 
 read.{$DOMAIN} {
 	import site
-	reverse_proxy {$UPSTREAM_HOST}:8083   # Calibre-Web
+	reverse_proxy {$UPSTREAM_HOST}:8083   # Calibre-Web-Automated (CWA)
+}
+
+books-dl.{$DOMAIN} {
+	import site
+	reverse_proxy {$UPSTREAM_HOST}:8085   # CWA book downloader
+}
+
+audiobooks.{$DOMAIN} {
+	import site
+	reverse_proxy {$UPSTREAM_HOST}:13378  # Audiobookshelf
 }
 
 rss.{$DOMAIN} {
