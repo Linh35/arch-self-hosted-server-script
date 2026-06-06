@@ -1,0 +1,16 @@
+# Built from the reviewed upstream source at a PINNED commit (not the mutable
+# :main prebuilt image), so we run exactly what was code-reviewed. Runs nonroot.
+FROM python:3.11-slim
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      git ffmpeg build-essential && rm -rf /var/lib/apt/lists/*
+RUN useradd -m -u 1000 spotiflac
+WORKDIR /app
+ARG COMMIT=414e49ed8de02d15b5190fc10e96eb30a6ca2f1b
+RUN git clone https://github.com/NotLugozzi/Spotiflac-web.git . \
+ && git checkout "$COMMIT"
+RUN pip install --no-cache-dir -r requirements.txt
+RUN mkdir -p /app/data && chown -R spotiflac:spotiflac /app
+USER spotiflac
+ENV PYTHONUNBUFFERED=1
+EXPOSE 8080
+CMD ["python","-m","uvicorn","app.main:app","--host","0.0.0.0","--port","8080"]

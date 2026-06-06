@@ -82,6 +82,11 @@ pdf.{$DOMAIN} {
 	reverse_proxy {$UPSTREAM_HOST}:8084   # Stirling-PDF
 }
 
+flac.{$DOMAIN} {
+	import site
+	reverse_proxy {$UPSTREAM_HOST}:7233   # SpotiFLAC-web
+}
+
 # --- *arr stack -----------------------------------------------------------
 prowlarr.{$DOMAIN} {
 	import site
