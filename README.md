@@ -19,7 +19,9 @@ Trust org — so the tunnel acts as a VPN, not a public front door.
 | Copyparty        | 3923    | `files.<domain>`     | LAN / WARP tunnel         |
 | Calibre (GUI)    | 8080    | `books.<domain>`     | LAN / WARP tunnel         |
 | Calibre content  | 8081    | —                    | LAN / WARP tunnel         |
-| Calibre-Web      | 8083    | `read.<domain>`      | LAN / WARP tunnel         |
+| Calibre-Web (CWA)| 8083    | `read.<domain>`      | LAN / WARP tunnel         |
+| CWA book-dl      | 8085    | `books-dl.<domain>`  | LAN / WARP tunnel         |
+| Audiobookshelf   | 13378   | `audiobooks.<domain>`| LAN / WARP tunnel         |
 | Navidrome        | 4533    | `music.<domain>`     | LAN / WARP tunnel         |
 | FreshRSS         | 8082    | `rss.<domain>`       | LAN / WARP tunnel         |
 | Jellyfin         | 8096    | `movies.<domain>`    | LAN / WARP tunnel         |

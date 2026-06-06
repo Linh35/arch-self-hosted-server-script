@@ -20,28 +20,3 @@ services:
       # GUI runs without auth (LAN + WARP-tunnel only). NOTE: setting PASSWORD
       # here — even to an empty value — makes the image enable HTTP basic auth,
       # so to keep the GUI open we omit the variable entirely rather than blank it.
-
-  # Calibre-Web — the client-facing reader/OPDS UI. It serves the SAME library
-  # that Calibre manages (shared volume below), so anything added in Calibre
-  # shows up here for browsing, reading, and download.
-  calibre-web:
-    image: lscr.io/linuxserver/calibre-web:latest
-    container_name: calibre-web
-    restart: unless-stopped
-    depends_on:
-      - calibre
-    ports:
-      - "8083:8083"
-    volumes:
-      - ${STORAGE_ROOT:-../../data}/calibre-web/config:/config
-      # Same on-disk library Calibre writes to — Calibre-Web reads its
-      # metadata.db from here. Point Calibre-Web at /books on first run.
-      # On the 1.8TB HDD (must match the calibre service's /library path above).
-      - /mnt/storage/calibre/library:/books
-    environment:
-      - PUID=${PUID:-1000}
-      - PGID=${PGID:-1000}
-      - TZ=${TZ:-UTC}
-      # Bundles Calibre's ebook-convert binaries into Calibre-Web so it can
-      # convert/edit formats itself. Comment out if you don't need conversion.
-      - DOCKER_MODS=linuxserver/mods:universal-calibre

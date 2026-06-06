@@ -1,0 +1,18 @@
+services:
+  # Audiobookshelf — self-hosted audiobook + podcast server/player (the
+  # audiobook equivalent of Navidrome). Serves the audiobooks library; add
+  # files to $STORAGE_ROOT/audiobooks and it indexes them.
+  audiobookshelf:
+    image: ghcr.io/advplyr/audiobookshelf:latest
+    container_name: audiobookshelf
+    restart: unless-stopped
+    user: "0:0"
+    ports:
+      - "13378:80"
+    volumes:
+      - ${STORAGE_ROOT:-../../data}/audiobookshelf/config:/config
+      - ${STORAGE_ROOT:-../../data}/audiobookshelf/metadata:/metadata
+      - ${STORAGE_ROOT:-../../data}/audiobooks:/audiobooks
+      - ${STORAGE_ROOT:-../../data}/podcasts:/podcasts
+    environment:
+      - TZ=${TZ:-UTC}
