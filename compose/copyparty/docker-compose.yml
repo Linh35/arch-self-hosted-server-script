@@ -9,6 +9,7 @@ services:
     volumes:
       - ${STORAGE_ROOT:-../../data}/copyparty/files:/w
       - /mnt/storage/calibre/library:/books:ro    # ebooks downloaded via dl-books (read-only)
+      - ${STORAGE_ROOT:-../../data}/cwa/ingest:/ingest   # upload books here -> CWA auto-imports them
     environment:
       - TZ=${TZ:-UTC}
     command:
@@ -24,3 +25,6 @@ services:
       # Read-only "books" share: the Calibre library that dl-books fills.
       - -v
       - "/books:books:r"
+      # Upload books here (e.g. from a local Calibre) -> CWA auto-imports into read.<domain>.
+      - -v
+      - "/ingest:book-upload:rwmda"
