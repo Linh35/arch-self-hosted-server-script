@@ -181,8 +181,18 @@ section "compose: invariants"
 
 while IFS= read -r f; do
   name=$(basename "$(dirname "$f")")
+  # Immich's compose is fetched verbatim from upstream (gitignored) and pins
+  # its media/DB via UPLOAD_LOCATION/DB_DATA_LOCATION in compose/immich/.env,
+  # which bootstrap points under STORAGE_ROOT — not via the compose file itself.
+  [[ "$name" == immich ]] && continue
   if grep -q 'STORAGE_ROOT' "$f"; then ok "$name compose pins data under STORAGE_ROOT"; else no "$name compose pins data under STORAGE_ROOT"; fi
 done < <(find compose -mindepth 2 -maxdepth 2 -name docker-compose.yml | sort)
+
+if grep -q 'immich/library' bootstrap.sh && grep -q 'immich/postgres' bootstrap.sh; then
+  ok "bootstrap pins Immich storage under STORAGE_ROOT"
+else
+  no "bootstrap pins Immich storage under STORAGE_ROOT"
+fi
 
 if grep -q '/music:/music:ro' compose/navidrome/docker-compose.yml; then
   ok "navidrome mounts the music library read-only"
