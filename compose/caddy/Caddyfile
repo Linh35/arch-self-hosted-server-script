@@ -57,6 +57,11 @@ read.{$DOMAIN} {
 	reverse_proxy {$UPSTREAM_HOST}:8083   # Calibre-Web
 }
 
+rss.{$DOMAIN} {
+	import site
+	reverse_proxy {$UPSTREAM_HOST}:8082   # FreshRSS
+}
+
 # --- *arr stack -----------------------------------------------------------
 prowlarr.{$DOMAIN} {
 	import site
