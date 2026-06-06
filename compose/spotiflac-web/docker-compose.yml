@@ -1,0 +1,28 @@
+services:
+  # SpotiFLAC-web — downloads FLAC (Tidal/Qobuz/Deezer) from Spotify URLs into
+  # the Navidrome music library. Built from a pinned, code-reviewed commit
+  # (compose/spotiflac-web/Containerfile), runs non-root, behind the perimeter.
+  spotiflac-web:
+    build:
+      context: .
+    image: localhost/spotiflac-web:reviewed
+    container_name: spotiflac-web
+    restart: unless-stopped
+    user: "0:0"   # rootless: maps to host user, can write the DB + music folder
+    ports:
+      - "7233:8080"
+    volumes:
+      - ${STORAGE_ROOT:-../../data}/spotiflac-web/data:/app/data
+      - ${STORAGE_ROOT:-../../data}/music:/music        # scans existing library
+      - ${STORAGE_ROOT:-../../data}/music:/downloads     # writes new FLAC here -> Navidrome indexes
+    environment:
+      - APP_ENV=production
+      - DEBUG=false
+      - SECRET_KEY=${SPOTIFLAC_SECRET_KEY:-}
+      - MUSIC_LIBRARY_PATH=/music
+      - DOWNLOAD_PATH=/downloads
+      - DATABASE_URL=sqlite:///./data/spotiflac.db
+      - SPOTIFLAC_SERVICE=${SPOTIFLAC_SERVICE:-qobuz,tidal}
+      - AUTH_USERNAME=${AUTH_USERNAME:-admin}
+      - AUTH_PASSWORD=${AUTH_PASSWORD:-admin}
+      - TZ=${TZ:-UTC}
