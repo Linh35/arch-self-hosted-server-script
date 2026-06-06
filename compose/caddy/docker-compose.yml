@@ -15,6 +15,13 @@ services:
     image: localhost/selfhost-caddy:latest
     container_name: caddy
     restart: unless-stopped
+    # Resolve external names (ACME directory, Cloudflare API) via Cloudflare's
+    # public DNS directly. Avoids the flaky rootless-podman chain
+    # (aardvark -> systemd-resolved 127.0.0.53 -> router), which intermittently
+    # timed out and broke ACME cert renewal.
+    dns:
+      - 1.1.1.1
+      - 1.0.0.1
     ports:
       - "80:80"
       - "443:443"
