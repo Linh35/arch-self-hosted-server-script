@@ -38,6 +38,21 @@ elif ! podman info --format '{{.Registries.search}}' 2>/dev/null | grep -q docke
   log "  wrote ~/.config/containers/registries.conf"
 fi
 
+log "Ensuring containers get working external DNS"
+# The host resolver is usually the systemd-resolved stub (127.0.0.53), which
+# aardvark-dns can't reach from a container netns -> external DNS fails for
+# every container (silently breaks downloads, metadata, indexer searches).
+# Point aardvark's upstream at public resolvers. It still answers container
+# names; only external queries forward here.
+if [[ "$DRY_RUN" == 1 ]]; then
+  log "  [dry-run] would write ~/.config/containers/containers.conf ([containers] dns_servers)"
+elif [[ ! -f "$HOME/.config/containers/containers.conf" ]]; then
+  mkdir -p "$HOME/.config/containers"
+  printf '[containers]\ndns_servers = ["1.1.1.1", "9.9.9.9"]\n' \
+    > "$HOME/.config/containers/containers.conf"
+  log "  wrote ~/.config/containers/containers.conf"
+fi
+
 log "Configuring the host firewall (ufw): allow SSH + the LAN, deny the rest"
 # Without this, ufw's default deny-incoming silently drops every connection from
 # other devices (services only answer on localhost). Allow SSH explicitly so we
