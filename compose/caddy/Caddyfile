@@ -67,7 +67,7 @@ movies.{$DOMAIN} {
 	reverse_proxy {$UPSTREAM_HOST}:8096   # Jellyfin
 }
 
-requests.{$DOMAIN} {
+dl-movies.{$DOMAIN} {
 	import site
 	reverse_proxy {$UPSTREAM_HOST}:5055   # Jellyseerr
 }
