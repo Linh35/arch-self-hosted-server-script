@@ -62,6 +62,11 @@ rss.{$DOMAIN} {
 	reverse_proxy {$UPSTREAM_HOST}:8082   # FreshRSS
 }
 
+movies.{$DOMAIN} {
+	import site
+	reverse_proxy {$UPSTREAM_HOST}:8181   # Stremio web UI (streaming stays direct on :11470/:12470)
+}
+
 # --- *arr stack -----------------------------------------------------------
 prowlarr.{$DOMAIN} {
 	import site

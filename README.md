@@ -22,7 +22,7 @@ Trust org — so the tunnel acts as a VPN, not a public front door.
 | Calibre-Web      | 8083    | `read.<domain>`      | LAN / WARP tunnel         |
 | Navidrome        | 4533    | `music.<domain>`     | LAN / WARP tunnel         |
 | FreshRSS         | 8082    | `rss.<domain>`       | LAN / WARP tunnel         |
-| Stremio (web)    | 8181    | — (open in browser)  | LAN / WARP tunnel         |
+| Stremio (web)    | 8181    | `movies.<domain>`    | LAN / WARP tunnel         |
 | AppFlowy         | 9000    | `flowy.<domain>`     | LAN / WARP tunnel         |
 
 Caddy puts a clean name and HTTPS in front of each service, so you reach
@@ -187,21 +187,24 @@ access`. See `ssh/config.example`.
 ### Stremio (browse + stream movies via torrents)
 
 `compose/stremio` runs the Stremio web UI and its streaming server together.
-Open it in a browser on the LAN or over WARP at `http://<server-ip>:8181`; it
-streams torrents on the fly. **No VPN** — torrent traffic exits on this host's
-IP. Wrap it in gluetun if you want that hidden (the VPN variant is in git
-history). It isn't proxied through Caddy (an HTTPS page talking to the HTTP
-streaming server trips browser mixed-content), so reach it directly by IP:port.
+Reach the web UI at `https://movies.<domain>` (or directly at
+`http://<server-ip>:8181`) on the LAN or over WARP; it streams torrents on the
+fly. **No VPN** — torrent traffic exits on this host's IP. Wrap it in gluetun
+if you want that hidden (the VPN variant is in git history).
 
-**Set up Torrentio** — the addon that actually finds the torrents. It's stored
-per browser, so do this once on each device:
+Set `STREMIO_IP` in `compose/stremio/.env` to the server's LAN IP. That turns
+on the image's HTTPS streaming server (`:12470`) with a generated cert, so the
+HTTPS web UI at `movies.<domain>` can talk to it without the browser's usual
+mixed-content block — playback works over the proxied hostname, not just
+`ip:8181`.
 
-1. Open `http://<server-ip>:8181` → the **Addons** (puzzle-piece) tab.
-2. Install this manifest URL:
-   `https://torrentio.strem.fun/manifest.json`
-   (or pick providers/quality first at <https://torrentio.strem.fun/configure>
-   and install the custom URL it gives you).
-3. Open a movie/show and choose a stream — the server downloads + streams it.
+**Torrentio** — the addon that actually finds the torrents — is pre-installed.
+`compose/stremio/localStorage.json` seeds the default addons plus Torrentio
+into the web UI on the first load of a *fresh* browser. To change
+providers/quality, edit the Torrentio `transportUrl` there (build a custom one
+at <https://torrentio.strem.fun/configure>). A browser that already has a
+Stremio profile won't be re-seeded — add it once via the **Addons**
+(puzzle-piece) tab using `https://torrentio.strem.fun/manifest.json`.
 
 Cache/data lives under `$STORAGE_ROOT/stremio`.
 
