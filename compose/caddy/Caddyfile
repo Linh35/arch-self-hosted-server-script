@@ -82,3 +82,14 @@ qbit.{$DOMAIN} {
 	import site
 	reverse_proxy {$UPSTREAM_HOST}:8088   # qBittorrent (via gluetun)
 }
+
+# --- AppFlowy -------------------------------------------------------------
+# Single host front door: AppFlowy's own nginx (compose/appflowy) does the
+# internal path routing for /api, /ws, /gotrue, /minio, /console and the web
+# UI. Caddy just terminates TLS and forwards everything — WebSockets and SSE
+# pass through reverse_proxy unchanged. Keep APPFLOWY_PORT in sync with
+# compose/appflowy/.env.
+flowy.{$DOMAIN} {
+	import site
+	reverse_proxy {$UPSTREAM_HOST}:9000   # AppFlowy (internal nginx router)
+}
