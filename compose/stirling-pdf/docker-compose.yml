@@ -2,6 +2,10 @@ services:
   # Stirling-PDF — self-hosted PDF toolbox (merge, split, OCR, convert, sign,
   # compress, ...). Everything runs locally; nothing leaves the box. Reach it
   # at pdf.<domain> or http://<server-ip>:8084.
+  #
+  # No login (it sits behind the LAN/WARP perimeter like the other services),
+  # and the locked "Pro"/server-edition tools are hidden so there are no
+  # subscription upsell prompts. Core PDF tools are all free.
   stirling-pdf:
     image: docker.io/stirlingtools/stirling-pdf:latest
     container_name: stirling-pdf
@@ -14,3 +18,7 @@ services:
     environment:
       - TZ=${TZ:-UTC}
       - DOCKER_ENABLE_SECURITY=false
+      - SECURITY_ENABLELOGIN=false                # no account/login required
+      - SYSTEM_DEFAULTHIDEUNAVAILABLETOOLS=true   # hide locked Pro tools (removes upsell)
+      - SYSTEM_ENABLEANALYTICS=false
+      - SYSTEM_SHOWUPDATE=false
