@@ -87,6 +87,16 @@ flac.{$DOMAIN} {
 	reverse_proxy {$UPSTREAM_HOST}:7233   # SpotiFLAC-web
 }
 
+lidarr.{$DOMAIN} {
+	import site
+	reverse_proxy {$UPSTREAM_HOST}:8686   # Lidarr (music)
+}
+
+slskd.{$DOMAIN} {
+	import site
+	reverse_proxy {$UPSTREAM_HOST}:5030   # slskd (Soulseek)
+}
+
 # --- *arr stack -----------------------------------------------------------
 prowlarr.{$DOMAIN} {
 	import site

@@ -1,0 +1,54 @@
+services:
+  # Lidarr — music library manager (the Radarr/Sonarr equivalent for music).
+  # Root folder is the Navidrome library (/music) so what Lidarr manages is what
+  # Navidrome plays. Soularr drives slskd (Soulseek) to fetch FLAC, then Lidarr
+  # imports from /downloads (same pool -> hardlinks).
+  lidarr:
+    image: lscr.io/linuxserver/lidarr:latest
+    container_name: lidarr
+    restart: unless-stopped
+    ports:
+      - "8686:8686"
+    volumes:
+      - ${STORAGE_ROOT:-../../data}/lidarr/config:/config
+      - ${STORAGE_ROOT:-../../data}/music:/music            # library root (Navidrome's folder)
+      - ${STORAGE_ROOT:-../../data}/slskd/downloads:/downloads
+    environment:
+      - PUID=${PUID:-0}
+      - PGID=${PGID:-0}
+      - TZ=${TZ:-UTC}
+
+  # slskd — Soulseek daemon + web UI. The actual FLAC source (free P2P).
+  slskd:
+    image: slskd/slskd:latest
+    container_name: slskd
+    restart: unless-stopped
+    user: "0:0"
+    ports:
+      - "5030:5030"          # web UI / API
+      - "50300:50300"        # Soulseek listen port
+    volumes:
+      - ${STORAGE_ROOT:-../../data}/slskd/config:/app
+      - ${STORAGE_ROOT:-../../data}/slskd/downloads:/downloads
+      - ${STORAGE_ROOT:-../../data}/music:/music:ro          # share your library back to Soulseek (optional)
+    environment:
+      - TZ=${TZ:-UTC}
+      - SLSKD_REMOTE_CONFIGURATION=true
+      - SLSKD_SLSK_LISTEN_PORT=50300
+      - SLSKD_SLSK_USERNAME=${SLSKD_SLSK_USERNAME:-}
+      - SLSKD_SLSK_PASSWORD=${SLSKD_SLSK_PASSWORD:-}
+
+  # Soularr — bridge: reads Lidarr's wanted list, searches slskd, downloads,
+  # then triggers Lidarr import. Needs config.ini (created on first run; edit
+  # it with the Lidarr + slskd API keys, then it loops every SCRIPT_INTERVAL).
+  soularr:
+    image: docker.io/mrusse08/soularr:latest
+    container_name: soularr
+    restart: unless-stopped
+    user: "0:0"
+    volumes:
+      - ${STORAGE_ROOT:-../../data}/soularr/config:/data
+      - ${STORAGE_ROOT:-../../data}/slskd/downloads:/downloads
+    environment:
+      - TZ=${TZ:-UTC}
+      - SCRIPT_INTERVAL=${SOULARR_INTERVAL:-300}
