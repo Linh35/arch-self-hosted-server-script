@@ -22,7 +22,8 @@ Trust org — so the tunnel acts as a VPN, not a public front door.
 | Calibre-Web      | 8083    | `read.<domain>`      | LAN / WARP tunnel         |
 | Navidrome        | 4533    | `music.<domain>`     | LAN / WARP tunnel         |
 | FreshRSS         | 8082    | `rss.<domain>`       | LAN / WARP tunnel         |
-| Stremio (web)    | 8181    | `movies.<domain>`    | LAN / WARP tunnel         |
+| Jellyfin         | 8096    | `movies.<domain>`    | LAN / WARP tunnel         |
+| Jellyseerr       | 5055    | `requests.<domain>`  | LAN / WARP tunnel         |
 | AppFlowy         | 9000    | `flowy.<domain>`     | LAN / WARP tunnel         |
 
 Caddy puts a clean name and HTTPS in front of each service, so you reach
@@ -40,7 +41,8 @@ run with as little auth as each app allows:
 |-------------|-------|
 | Copyparty   | none (anonymous read/write) |
 | Calibre GUI | none |
-| Stremio     | none |
+| Jellyfin    | set up on first run — create the admin in the web wizard, add a library at `/data/movies` |
+| Jellyseerr  | sign in with your Jellyfin account in the setup wizard, then connect Radarr/Sonarr |
 | Navidrome   | `admin` / `admin` — auto-created on first run; set `NAVIDROME_ADMIN_PASSWORD` in `compose/navidrome/.env` to change |
 | FreshRSS    | set up on first run — create the admin in the web installer (choose SQLite) |
 | Calibre-Web | `admin` / `admin123` (built-in default) — flip on Anonymous Browsing in its admin settings for no login |
@@ -184,32 +186,41 @@ instead expose SSH through a *proxied* public hostname, a plain client dials
 Cloudflare's edge on port 22 and hangs; it has to be wrapped in `cloudflared
 access`. See `ssh/config.example`.
 
-### Stremio (browse + stream movies via torrents)
+### Movies & TV (Jellyfin + Jellyseerr + the *arr stack)
 
-`compose/stremio` runs the Stremio web UI and its streaming server together.
-Reach the web UI at `https://movies.<domain>` (or directly at
-`http://<server-ip>:8181`) on the LAN or over WARP; it streams torrents on the
-fly. **No VPN** — torrent traffic exits on this host's IP. Wrap it in gluetun
-if you want that hidden (the VPN variant is in git history).
+The pipeline: **Jellyseerr** (`requests.<domain>`) is where you browse and
+request a movie or show. It hands the request to **Radarr**/**Sonarr**, which
+search indexers via **Prowlarr** and send the release to **qBittorrent**.
+Downloads land in `/mnt/storage/data` (shared by every *arr app + qBittorrent
+so imports are hardlinks, not copies), and **Jellyfin** (`movies.<domain>`)
+streams the finished library to any browser or native app, transcoding on the
+fly as needed.
 
-Set `STREMIO_IP` in `compose/stremio/.env` to the server's LAN IP. For
-playback the web UI has to reach the streaming server: on the LAN the reliable
-path is `http://<server-ip>:8181` (UI and streaming server are both plain HTTP
-on the same IP). Over the HTTPS `movies.<domain>` hostname the browser blocks
-the plain-HTTP streaming server (mixed content), so if a stream won't start
-there, use `ip:8181` or point the streaming-server URL in Settings at the box.
+Jellyfin only *reads* the library (`/data:ro`) — the *arr apps own the files —
+so point its libraries at `/data/movies` and `/data/tv`.
 
-**Set up Torrentio** — the addon that actually finds the torrents. It's stored
-per browser, so do this once on each device:
+First-run wiring (one time, in each app's web UI):
 
-1. Open the web UI → the **Addons** (puzzle-piece) tab.
-2. Install this manifest URL:
-   `https://torrentio.strem.fun/manifest.json`
-   (or pick providers/quality first at <https://torrentio.strem.fun/configure>
-   and install the custom URL it gives you).
-3. Open a movie/show and choose a stream — the server downloads + streams it.
+1. **qBittorrent** (`:8088`) — note the WebUI login; set the default save path
+   under `/data` (e.g. `/data/torrents`).
+2. **Prowlarr** (`:9696`) — add indexers, then add Radarr & Sonarr under
+   *Settings → Apps* so it pushes those indexers to them.
+3. **Radarr** (`:7878`) / **Sonarr** (`:8989`) — add qBittorrent under
+   *Settings → Download Clients*; set a root folder (`/data/movies`, `/data/tv`).
+4. **Jellyfin** (`movies.<domain>`) — create the admin, add Movie/Show
+   libraries pointing at `/data/movies` and `/data/tv`.
+5. **Jellyseerr** (`requests.<domain>`) — sign in with the Jellyfin admin, then
+   connect Radarr & Sonarr (their URLs + API keys).
 
-Cache/data lives under `$STORAGE_ROOT/stremio`.
+Then in Jellyseerr: search a title → **Request** → it downloads and shows up in
+Jellyfin when done. **No VPN** — torrent traffic exits on the host's IP; re-add
+gluetun for qBittorrent if you want it hidden. Config/data live under
+`$STORAGE_ROOT/jellyfin` and `$STORAGE_ROOT/jellyseerr`.
+
+Jellyfin streams your *downloaded* library; it has no built-in on-the-fly
+torrent streaming (that was Stremio's niche). For instant streaming, add a
+debrid mount (Real-Debrid via Zurg + rclone, or Riven) that exposes titles as
+files Jellyfin can read — not set up here.
 
 ### Books (Calibre + Calibre-Web)
 
