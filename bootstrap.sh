@@ -118,7 +118,16 @@ else
   done
   if [[ ! -f "$HERE/compose/immich/.env" && -f "$HERE/compose/immich/example.env" ]]; then
     cp "$HERE/compose/immich/example.env" "$HERE/compose/immich/.env"
-    log "  created compose/immich/.env"
+    # Pin Immich's media + database under STORAGE_ROOT like every other stack.
+    # Upstream's example.env defaults them to ./library and ./postgres, which
+    # would land inside the repo checkout instead of the storage pool. Resolve
+    # STORAGE_ROOT the same way manage.sh does (root .env, else data/ fallback).
+    sr="$( set -a; [[ -f "$HERE/.env" ]] && source "$HERE/.env" 2>/dev/null; printf '%s' "${STORAGE_ROOT:-$HERE/data}" )"
+    sed -i \
+      -e "s#^UPLOAD_LOCATION=.*#UPLOAD_LOCATION=$sr/immich/library#" \
+      -e "s#^DB_DATA_LOCATION=.*#DB_DATA_LOCATION=$sr/immich/postgres#" \
+      "$HERE/compose/immich/.env"
+    log "  created compose/immich/.env (storage pinned under $sr/immich)"
   fi
   if [[ ! -f "$HERE/cloudflared/config.yml" ]]; then
     cp "$HERE/cloudflared/config.yml.example" "$HERE/cloudflared/config.yml"
