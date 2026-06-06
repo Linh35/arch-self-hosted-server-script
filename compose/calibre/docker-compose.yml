@@ -11,7 +11,8 @@ services:
       - "8081:8081"   # Calibre Content Server (OPDS + remote/e-reader clients)
     volumes:
       - ${STORAGE_ROOT:-../../data}/calibre/config:/config
-      - ${STORAGE_ROOT:-../../data}/calibre/library:/library
+      # Book library (bulk files) lives on the 1.8TB HDD; config stays on SSD.
+      - /mnt/storage/calibre/library:/library
     environment:
       - PUID=${PUID:-1000}
       - PGID=${PGID:-1000}
@@ -35,7 +36,8 @@ services:
       - ${STORAGE_ROOT:-../../data}/calibre-web/config:/config
       # Same on-disk library Calibre writes to — Calibre-Web reads its
       # metadata.db from here. Point Calibre-Web at /books on first run.
-      - ${STORAGE_ROOT:-../../data}/calibre/library:/books
+      # On the 1.8TB HDD (must match the calibre service's /library path above).
+      - /mnt/storage/calibre/library:/books
     environment:
       - PUID=${PUID:-1000}
       - PGID=${PGID:-1000}
