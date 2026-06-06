@@ -192,19 +192,22 @@ Reach the web UI at `https://movies.<domain>` (or directly at
 fly. **No VPN** — torrent traffic exits on this host's IP. Wrap it in gluetun
 if you want that hidden (the VPN variant is in git history).
 
-Set `STREMIO_IP` in `compose/stremio/.env` to the server's LAN IP. That turns
-on the image's HTTPS streaming server (`:12470`) with a generated cert, so the
-HTTPS web UI at `movies.<domain>` can talk to it without the browser's usual
-mixed-content block — playback works over the proxied hostname, not just
-`ip:8181`.
+Set `STREMIO_IP` in `compose/stremio/.env` to the server's LAN IP. For
+playback the web UI has to reach the streaming server: on the LAN the reliable
+path is `http://<server-ip>:8181` (UI and streaming server are both plain HTTP
+on the same IP). Over the HTTPS `movies.<domain>` hostname the browser blocks
+the plain-HTTP streaming server (mixed content), so if a stream won't start
+there, use `ip:8181` or point the streaming-server URL in Settings at the box.
 
-**Torrentio** — the addon that actually finds the torrents — is pre-installed.
-`compose/stremio/localStorage.json` seeds the default addons plus Torrentio
-into the web UI on the first load of a *fresh* browser. To change
-providers/quality, edit the Torrentio `transportUrl` there (build a custom one
-at <https://torrentio.strem.fun/configure>). A browser that already has a
-Stremio profile won't be re-seeded — add it once via the **Addons**
-(puzzle-piece) tab using `https://torrentio.strem.fun/manifest.json`.
+**Set up Torrentio** — the addon that actually finds the torrents. It's stored
+per browser, so do this once on each device:
+
+1. Open the web UI → the **Addons** (puzzle-piece) tab.
+2. Install this manifest URL:
+   `https://torrentio.strem.fun/manifest.json`
+   (or pick providers/quality first at <https://torrentio.strem.fun/configure>
+   and install the custom URL it gives you).
+3. Open a movie/show and choose a stream — the server downloads + streams it.
 
 Cache/data lives under `$STORAGE_ROOT/stremio`.
 
