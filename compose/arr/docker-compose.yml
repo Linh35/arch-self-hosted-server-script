@@ -1,0 +1,76 @@
+services:
+  # qBittorrent — NO VPN: torrent traffic exits directly on the host's IP
+  # (same as Stremio). To tunnel it through a VPN later, re-add a gluetun
+  # service and set qbittorrent's `network_mode: "service:gluetun"` (moving
+  # the ports below onto the gluetun service).
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent:latest
+    container_name: qbittorrent
+    restart: unless-stopped
+    ports:
+      - "8088:8080"            # Web UI
+      - "6881:6881"            # torrent port (TCP)
+      - "6881:6881/udp"        # torrent port (UDP)
+    volumes:
+      - ${STORAGE_ROOT:-../../data}/arr/qbittorrent/config:/config
+      - /mnt/storage/data:/data       # downloads + library on the HDD (hardlinks)
+    environment:
+      - PUID=${PUID:-0}
+      - PGID=${PGID:-0}
+      - TZ=${TZ:-UTC}
+      - WEBUI_PORT=8080
+
+  prowlarr:
+    image: lscr.io/linuxserver/prowlarr:latest
+    container_name: prowlarr
+    restart: unless-stopped
+    ports:
+      - "9696:9696"
+    volumes:
+      - ${STORAGE_ROOT:-../../data}/arr/prowlarr/config:/config
+    environment:
+      - PUID=${PUID:-0}
+      - PGID=${PGID:-0}
+      - TZ=${TZ:-UTC}
+
+  radarr:
+    image: lscr.io/linuxserver/radarr:latest
+    container_name: radarr
+    restart: unless-stopped
+    ports:
+      - "7878:7878"
+    volumes:
+      - ${STORAGE_ROOT:-../../data}/arr/radarr/config:/config
+      - /mnt/storage/data:/data
+    environment:
+      - PUID=${PUID:-0}
+      - PGID=${PGID:-0}
+      - TZ=${TZ:-UTC}
+
+  sonarr:
+    image: lscr.io/linuxserver/sonarr:latest
+    container_name: sonarr
+    restart: unless-stopped
+    ports:
+      - "8989:8989"
+    volumes:
+      - ${STORAGE_ROOT:-../../data}/arr/sonarr/config:/config
+      - /mnt/storage/data:/data
+    environment:
+      - PUID=${PUID:-0}
+      - PGID=${PGID:-0}
+      - TZ=${TZ:-UTC}
+
+  bazarr:
+    image: lscr.io/linuxserver/bazarr:latest
+    container_name: bazarr
+    restart: unless-stopped
+    ports:
+      - "6767:6767"
+    volumes:
+      - ${STORAGE_ROOT:-../../data}/arr/bazarr/config:/config
+      - /mnt/storage/data:/data
+    environment:
+      - PUID=${PUID:-0}
+      - PGID=${PGID:-0}
+      - TZ=${TZ:-UTC}
