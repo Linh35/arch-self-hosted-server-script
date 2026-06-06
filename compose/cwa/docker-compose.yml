@@ -27,7 +27,9 @@ services:
     ports:
       - "8085:8084"
     volumes:
+      - ${STORAGE_ROOT:-../../data}/cwa/dl-config:/config        # persist Shelfmark settings
       - ${STORAGE_ROOT:-../../data}/cwa/ingest:/cwa-book-ingest
+      - /mnt/storage/data/torrents:/data/torrents               # see qBittorrent's completed book torrents
     environment:
       - TZ=${TZ:-UTC}
       - UID=${PUID:-0}
