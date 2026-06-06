@@ -28,6 +28,8 @@ Trust org — so the tunnel acts as a VPN, not a public front door.
 | Homarr           | 7575    | `home.<domain>`      | LAN / WARP tunnel         |
 | Stirling-PDF     | 8084    | `pdf.<domain>`       | LAN / WARP tunnel         |
 | SpotiFLAC-web    | 7233    | `flac.<domain>`      | LAN / WARP tunnel         |
+| Lidarr           | 8686    | `lidarr.<domain>`    | LAN / WARP tunnel         |
+| slskd (Soulseek) | 5030    | `slskd.<domain>`     | LAN / WARP tunnel         |
 
 Caddy puts a clean name and HTTPS in front of each service, so you reach
 them at `https://music.<domain>` instead of `http://<server-ip>:4533`. The
