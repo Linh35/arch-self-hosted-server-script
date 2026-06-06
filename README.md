@@ -23,7 +23,7 @@ Trust org — so the tunnel acts as a VPN, not a public front door.
 | Navidrome        | 4533    | `music.<domain>`     | LAN / WARP tunnel         |
 | FreshRSS         | 8082    | `rss.<domain>`       | LAN / WARP tunnel         |
 | Jellyfin         | 8096    | `movies.<domain>`    | LAN / WARP tunnel         |
-| Jellyseerr       | 5055    | `requests.<domain>`  | LAN / WARP tunnel         |
+| Jellyseerr       | 5055    | `dl-movies.<domain>`  | LAN / WARP tunnel         |
 | AppFlowy         | 9000    | `flowy.<domain>`     | LAN / WARP tunnel         |
 
 Caddy puts a clean name and HTTPS in front of each service, so you reach
@@ -188,7 +188,7 @@ access`. See `ssh/config.example`.
 
 ### Movies & TV (Jellyfin + Jellyseerr + the *arr stack)
 
-The pipeline: **Jellyseerr** (`requests.<domain>`) is where you browse and
+The pipeline: **Jellyseerr** (`dl-movies.<domain>`) is where you browse and
 request a movie or show. It hands the request to **Radarr**/**Sonarr**, which
 search indexers via **Prowlarr** and send the release to **qBittorrent**.
 Downloads land in `/mnt/storage/data` (shared by every *arr app + qBittorrent
@@ -209,7 +209,7 @@ First-run wiring (one time, in each app's web UI):
    *Settings → Download Clients*; set a root folder (`/data/movies`, `/data/tv`).
 4. **Jellyfin** (`movies.<domain>`) — create the admin, add Movie/Show
    libraries pointing at `/data/movies` and `/data/tv`.
-5. **Jellyseerr** (`requests.<domain>`) — sign in with the Jellyfin admin, then
+5. **Jellyseerr** (`dl-movies.<domain>`) — sign in with the Jellyfin admin, then
    connect Radarr & Sonarr (their URLs + API keys).
 
 Then in Jellyseerr: search a title → **Request** → it downloads and shows up in
