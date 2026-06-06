@@ -72,6 +72,16 @@ dl-movies.{$DOMAIN} {
 	reverse_proxy {$UPSTREAM_HOST}:5055   # Jellyseerr
 }
 
+home.{$DOMAIN} {
+	import site
+	reverse_proxy {$UPSTREAM_HOST}:7575   # Homarr (dashboard)
+}
+
+pdf.{$DOMAIN} {
+	import site
+	reverse_proxy {$UPSTREAM_HOST}:8084   # Stirling-PDF
+}
+
 # --- *arr stack -----------------------------------------------------------
 prowlarr.{$DOMAIN} {
 	import site
