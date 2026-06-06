@@ -1,6 +1,6 @@
 services:
   copyparty:
-    image: copyparty/ac:latest
+    image: docker.io/copyparty/ac:latest
     container_name: copyparty
     restart: unless-stopped
     user: "${PUID:-1000}:${PGID:-1000}"
