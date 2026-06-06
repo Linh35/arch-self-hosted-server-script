@@ -1,0 +1,204 @@
+# AppFlowy-Cloud — self-hosted Notion-style workspace backend + web UI.
+#
+# Adapted from the upstream compose
+# (https://github.com/AppFlowy-IO/AppFlowy-Cloud/blob/main/docker-compose.yml)
+# for this stack:
+#   * TLS is terminated by the stack's Caddy, so the internal nginx serves plain
+#     :80 and we publish ONLY that one port (APPFLOWY_PORT) on the host. Caddy
+#     reverse-proxies flowy.{$DOMAIN} -> {$UPSTREAM_HOST}:${APPFLOWY_PORT}.
+#   * Postgres + MinIO data are bind-mounted under STORAGE_ROOT (the btrfs pool),
+#     like every other stack here, instead of anonymous named volumes.
+#   * pgadmin is dropped. The `ai` and `appflowy_search` services are left out by
+#     default (they need an OpenAI key / extra resources); AI_ENABLED=false keeps
+#     core docs, sync and the web UI fully working. See README to opt in.
+#
+# All configuration (secrets, FQDN, SMTP) lives in this stack's .env — copy
+# .env.example to .env and fill it in before `manage.sh up`.
+
+services:
+  nginx:
+    image: docker.io/library/nginx:latest
+    container_name: appflowy_nginx
+    restart: unless-stopped
+    ports:
+      - "${APPFLOWY_PORT:-9000}:80"   # the only AppFlowy port on the host; Caddy proxies here
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - appflowy_cloud
+      - appflowy_web
+      - admin_frontend
+      - gotrue
+      - minio
+
+  postgres:
+    image: docker.io/pgvector/pgvector:pg16
+    container_name: appflowy_postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_DB=${POSTGRES_DB:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-password}
+      - POSTGRES_HOST=${POSTGRES_HOST:-postgres}
+      - PGPORT=${POSTGRES_PORT:-5432}
+    command: ["postgres", "-c", "port=${POSTGRES_PORT:-5432}"]
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER:-postgres}", "-d", "${POSTGRES_DB:-postgres}", "-p", "${POSTGRES_PORT:-5432}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    volumes:
+      - ${STORAGE_ROOT:-../../data}/appflowy/postgres:/var/lib/postgresql/data
+
+  redis:
+    image: docker.io/library/redis:latest
+    container_name: appflowy_redis
+    restart: unless-stopped
+
+  minio:
+    image: docker.io/minio/minio:latest
+    container_name: appflowy_minio
+    restart: unless-stopped
+    environment:
+      - MINIO_BROWSER_REDIRECT_URL=${APPFLOWY_BASE_URL}/minio
+      - MINIO_ROOT_USER=${APPFLOWY_S3_ACCESS_KEY:-minioadmin}
+      - MINIO_ROOT_PASSWORD=${APPFLOWY_S3_SECRET_KEY:-minioadmin}
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    volumes:
+      - ${STORAGE_ROOT:-../../data}/appflowy/minio:/data
+
+  gotrue:
+    image: docker.io/appflowyinc/gotrue:${GOTRUE_VERSION:-latest}
+    container_name: appflowy_gotrue
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: "curl --fail http://127.0.0.1:9999/health || exit 1"
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+    environment:
+      - GOTRUE_ADMIN_EMAIL=${GOTRUE_ADMIN_EMAIL}
+      - GOTRUE_ADMIN_PASSWORD=${GOTRUE_ADMIN_PASSWORD}
+      - GOTRUE_DISABLE_SIGNUP=${GOTRUE_DISABLE_SIGNUP:-false}
+      - GOTRUE_SITE_URL=appflowy-flutter://
+      - GOTRUE_URI_ALLOW_LIST=**
+      - GOTRUE_JWT_SECRET=${GOTRUE_JWT_SECRET}
+      - GOTRUE_JWT_EXP=${GOTRUE_JWT_EXP:-604800}
+      - GOTRUE_JWT_ADMIN_GROUP_NAME=supabase_admin
+      - GOTRUE_DB_DRIVER=postgres
+      - API_EXTERNAL_URL=${API_EXTERNAL_URL}
+      - DATABASE_URL=${GOTRUE_DATABASE_URL}
+      - PORT=9999
+      - GOTRUE_SMTP_HOST=${GOTRUE_SMTP_HOST}
+      - GOTRUE_SMTP_PORT=${GOTRUE_SMTP_PORT}
+      - GOTRUE_SMTP_USER=${GOTRUE_SMTP_USER}
+      - GOTRUE_SMTP_PASS=${GOTRUE_SMTP_PASS}
+      - GOTRUE_MAILER_URLPATHS_CONFIRMATION=/gotrue/verify
+      - GOTRUE_MAILER_URLPATHS_INVITE=/gotrue/verify
+      - GOTRUE_MAILER_URLPATHS_RECOVERY=/gotrue/verify
+      - GOTRUE_MAILER_URLPATHS_EMAIL_CHANGE=/gotrue/verify
+      - GOTRUE_SMTP_ADMIN_EMAIL=${GOTRUE_SMTP_ADMIN_EMAIL}
+      - GOTRUE_SMTP_MAX_FREQUENCY=${GOTRUE_SMTP_MAX_FREQUENCY:-1ns}
+      - GOTRUE_RATE_LIMIT_EMAIL_SENT=${GOTRUE_RATE_LIMIT_EMAIL_SENT:-100}
+      - GOTRUE_MAILER_AUTOCONFIRM=${GOTRUE_MAILER_AUTOCONFIRM:-true}
+
+  appflowy_cloud:
+    image: docker.io/appflowyinc/appflowy_cloud:${APPFLOWY_CLOUD_VERSION:-latest}
+    container_name: appflowy_cloud
+    restart: unless-stopped
+    environment:
+      - RUST_LOG=${RUST_LOG:-info}
+      - APPFLOWY_ENVIRONMENT=production
+      - APPFLOWY_DATABASE_URL=${APPFLOWY_DATABASE_URL}
+      - APPFLOWY_REDIS_URI=${APPFLOWY_REDIS_URI}
+      - APPFLOWY_GOTRUE_JWT_SECRET=${GOTRUE_JWT_SECRET}
+      - APPFLOWY_GOTRUE_BASE_URL=${APPFLOWY_GOTRUE_BASE_URL:-http://gotrue:9999}
+      - APPFLOWY_S3_CREATE_BUCKET=${APPFLOWY_S3_CREATE_BUCKET:-true}
+      - APPFLOWY_S3_USE_MINIO=${APPFLOWY_S3_USE_MINIO:-true}
+      - APPFLOWY_S3_MINIO_URL=${APPFLOWY_S3_MINIO_URL:-http://minio:9000}
+      - APPFLOWY_S3_ACCESS_KEY=${APPFLOWY_S3_ACCESS_KEY:-minioadmin}
+      - APPFLOWY_S3_SECRET_KEY=${APPFLOWY_S3_SECRET_KEY:-minioadmin}
+      - APPFLOWY_S3_BUCKET=${APPFLOWY_S3_BUCKET:-appflowy}
+      - APPFLOWY_S3_PRESIGNED_URL_ENDPOINT=${APPFLOWY_S3_PRESIGNED_URL_ENDPOINT}
+      - APPFLOWY_MAILER_SMTP_HOST=${APPFLOWY_MAILER_SMTP_HOST}
+      - APPFLOWY_MAILER_SMTP_PORT=${APPFLOWY_MAILER_SMTP_PORT}
+      - APPFLOWY_MAILER_SMTP_USERNAME=${APPFLOWY_MAILER_SMTP_USERNAME}
+      - APPFLOWY_MAILER_SMTP_EMAIL=${APPFLOWY_MAILER_SMTP_EMAIL}
+      - APPFLOWY_MAILER_SMTP_PASSWORD=${APPFLOWY_MAILER_SMTP_PASSWORD}
+      - APPFLOWY_MAILER_SMTP_TLS_KIND=${APPFLOWY_MAILER_SMTP_TLS_KIND:-wrapper}
+      - APPFLOWY_ACCESS_CONTROL=${APPFLOWY_ACCESS_CONTROL:-true}
+      - APPFLOWY_DATABASE_MAX_CONNECTIONS=${APPFLOWY_DATABASE_MAX_CONNECTIONS:-40}
+      - APPFLOWY_WEB_URL=${APPFLOWY_WEB_URL}
+      - APPFLOWY_BASE_URL=${APPFLOWY_BASE_URL}
+      # AI + dedicated search service are opt-in (see README). Off by default so
+      # the stack runs without an OpenAI key or the extra containers.
+      - AI_ENABLED=${AI_ENABLED:-false}
+    healthcheck:
+      test: "curl --fail http://127.0.0.1:8000/api/health || exit 1"
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    depends_on:
+      gotrue:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      minio:
+        condition: service_started
+
+  admin_frontend:
+    image: docker.io/appflowyinc/admin_frontend:${APPFLOWY_ADMIN_FRONTEND_VERSION:-latest}
+    container_name: appflowy_admin
+    restart: unless-stopped
+    environment:
+      - APPFLOWY_GOTRUE_BASE_URL=${APPFLOWY_GOTRUE_BASE_URL:-http://gotrue:9999}
+      - APPFLOWY_BASE_URL=${APPFLOWY_BASE_URL:-http://appflowy_cloud:8000}
+    depends_on:
+      gotrue:
+        condition: service_healthy
+      appflowy_cloud:
+        condition: service_healthy
+
+  appflowy_web:
+    image: docker.io/appflowyinc/appflowy_web:${APPFLOWY_WEB_VERSION:-latest}
+    container_name: appflowy_web
+    restart: unless-stopped
+    environment:
+      - APPFLOWY_BASE_URL=${APPFLOWY_BASE_URL}
+      - APPFLOWY_GOTRUE_BASE_URL=${APPFLOWY_BASE_URL}/gotrue
+      - APPFLOWY_WS_BASE_URL=${APPFLOWY_WEBSOCKET_BASE_URL}
+    depends_on:
+      appflowy_cloud:
+        condition: service_healthy
+
+  appflowy_worker:
+    image: docker.io/appflowyinc/appflowy_worker:${APPFLOWY_WORKER_VERSION:-latest}
+    container_name: appflowy_worker
+    restart: unless-stopped
+    environment:
+      - RUST_LOG=${RUST_LOG:-info}
+      - APPFLOWY_ENVIRONMENT=production
+      - APPFLOWY_WORKER_REDIS_URL=${APPFLOWY_REDIS_URI:-redis://redis:6379}
+      - APPFLOWY_WORKER_ENVIRONMENT=production
+      - APPFLOWY_WORKER_DATABASE_URL=${APPFLOWY_DATABASE_URL}
+      - APPFLOWY_WORKER_DATABASE_NAME=${POSTGRES_DB:-postgres}
+      - APPFLOWY_WORKER_IMPORT_TICK_INTERVAL=30
+      - APPFLOWY_S3_USE_MINIO=${APPFLOWY_S3_USE_MINIO:-true}
+      - APPFLOWY_S3_MINIO_URL=${APPFLOWY_S3_MINIO_URL:-http://minio:9000}
+      - APPFLOWY_S3_ACCESS_KEY=${APPFLOWY_S3_ACCESS_KEY:-minioadmin}
+      - APPFLOWY_S3_SECRET_KEY=${APPFLOWY_S3_SECRET_KEY:-minioadmin}
+      - APPFLOWY_S3_BUCKET=${APPFLOWY_S3_BUCKET:-appflowy}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      appflowy_cloud:
+        condition: service_healthy

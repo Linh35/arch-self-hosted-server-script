@@ -22,6 +22,7 @@ Trust org — so the tunnel acts as a VPN, not a public front door.
 | Calibre-Web      | 8083    | `read.<domain>`      | LAN / WARP tunnel         |
 | Navidrome        | 4533    | `music.<domain>`     | LAN / WARP tunnel         |
 | Stremio (web)    | 8181    | — (open in browser)  | LAN / WARP tunnel         |
+| AppFlowy         | 9000    | `flowy.<domain>`     | LAN / WARP tunnel         |
 
 Caddy puts a clean name and HTTPS in front of each service, so you reach
 them at `https://music.<domain>` instead of `http://<server-ip>:4533`. The
@@ -41,6 +42,7 @@ run with as little auth as each app allows:
 | Stremio     | none |
 | Navidrome   | `admin` / `admin` — auto-created on first run; set `NAVIDROME_ADMIN_PASSWORD` in `compose/navidrome/.env` to change |
 | Calibre-Web | `admin` / `admin123` (built-in default) — flip on Anonymous Browsing in its admin settings for no login |
+| AppFlowy    | account-based — sign up at `flowy.<domain>` (first signup auto-confirmed). Admin console login is set by `GOTRUE_ADMIN_*` in `compose/appflowy/.env` |
 | Immich      | no anonymous mode — register the first user (becomes admin), who creates the rest |
 
 Anyone on the LAN or any WARP-enrolled device has this access, including
@@ -211,6 +213,41 @@ deemix can write straight there). Open Navidrome at
 `http://<server-ip>:4533`, create the admin user, and it scans the folder.
 Point any Subsonic client at that URL — Amperfy or play:Sub on iOS,
 Supersonic/Feishin/Tempo on macOS and Linux — or use the web UI.
+
+### AppFlowy (self-hosted workspace)
+
+`compose/appflowy` runs **AppFlowy-Cloud** — the self-hosted backend for the
+AppFlowy app (a Notion-style docs/wiki/database workspace) plus its browser
+UI. Unlike the other single-container apps, this is a small cluster: Postgres
+(`pgvector`), Redis, MinIO (S3 object storage), GoTrue (auth), the Rust API
+server, a background worker, the web UI, and an internal nginx that path-routes
+between them. That nginx is the stack's only host port; Caddy fronts it at
+`flowy.<domain>` and terminates TLS. Postgres and MinIO data live under
+`$STORAGE_ROOT/appflowy/`.
+
+Setup:
+
+1. `cp compose/appflowy/.env.example compose/appflowy/.env` and edit it:
+   - Set the five URL lines to your domain (replace `flowy.example.com`).
+   - Change `POSTGRES_PASSWORD` (and the matching password in
+     `APPFLOWY_DATABASE_URL` + `GOTRUE_DATABASE_URL` — three places).
+   - Set `GOTRUE_ADMIN_EMAIL` / `GOTRUE_ADMIN_PASSWORD`, generate
+     `GOTRUE_JWT_SECRET` with `openssl rand -hex 32`, and change the
+     `APPFLOWY_S3_ACCESS_KEY` / `APPFLOWY_S3_SECRET_KEY` from the defaults.
+2. Add a `flowy.<domain>` DNS record (same as the other names — see below).
+3. `./scripts/manage.sh up` (or `cd compose/appflowy && podman-compose up -d`).
+   First boot pulls several images and runs DB migrations — give it a minute.
+4. Open `https://flowy.<domain>`, sign up (the first account is
+   auto-confirmed), and connect the AppFlowy desktop/mobile app by setting its
+   **Cloud URL** to `https://flowy.<domain>`. The admin console (user
+   management) is at `https://flowy.<domain>/console`.
+
+Lock it down after creating your account: set `GOTRUE_DISABLE_SIGNUP=true` in
+the `.env` and `manage.sh restart`. **AI is off by default** (`AI_ENABLED=false`)
+so no OpenAI key is needed; to enable AI chat / semantic search, set
+`AI_ENABLED=true`, add `AI_OPENAI_API_KEY`, and re-add the upstream `ai` (and
+optional `appflowy_search`) services — see the
+[upstream compose](https://github.com/AppFlowy-IO/AppFlowy-Cloud/blob/main/docker-compose.yml).
 
 ### Reverse proxy (Caddy)
 
