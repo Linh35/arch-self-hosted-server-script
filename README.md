@@ -173,6 +173,14 @@ client, log in to your team/org, and connect. Once enrolled you can reach
 every service at its LAN address (`http://<server-ip>:2283`, etc.) from
 anywhere. On the LAN itself you don't need WARP at all.
 
+### SSH
+
+With WARP connected (or on the LAN) the server's LAN address is reachable
+directly: `ssh <user>@<server-ip>` — nothing extra to configure. If you
+instead expose SSH through a *proxied* public hostname, a plain client dials
+Cloudflare's edge on port 22 and hangs; it has to be wrapped in `cloudflared
+access`. See `ssh/config.example`.
+
 ### Stremio (browse + stream movies via torrents)
 
 `compose/stremio` runs the Stremio web UI and its streaming server together.
