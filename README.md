@@ -21,6 +21,7 @@ Trust org — so the tunnel acts as a VPN, not a public front door.
 | Calibre content  | 8081    | —                    | LAN / WARP tunnel         |
 | Calibre-Web      | 8083    | `read.<domain>`      | LAN / WARP tunnel         |
 | Navidrome        | 4533    | `music.<domain>`     | LAN / WARP tunnel         |
+| FreshRSS         | 8082    | `rss.<domain>`       | LAN / WARP tunnel         |
 | Stremio (web)    | 8181    | — (open in browser)  | LAN / WARP tunnel         |
 | AppFlowy         | 9000    | `flowy.<domain>`     | LAN / WARP tunnel         |
 
@@ -41,6 +42,7 @@ run with as little auth as each app allows:
 | Calibre GUI | none |
 | Stremio     | none |
 | Navidrome   | `admin` / `admin` — auto-created on first run; set `NAVIDROME_ADMIN_PASSWORD` in `compose/navidrome/.env` to change |
+| FreshRSS    | set up on first run — create the admin in the web installer (choose SQLite) |
 | Calibre-Web | `admin` / `admin123` (built-in default) — flip on Anonymous Browsing in its admin settings for no login |
 | AppFlowy    | account-based — sign up at `flowy.<domain>` (first signup auto-confirmed). Admin console login is set by `GOTRUE_ADMIN_*` in `compose/appflowy/.env` |
 | Immich      | no anonymous mode — register the first user (becomes admin), who creates the rest |
@@ -221,6 +223,14 @@ deemix can write straight there). Open Navidrome at
 `http://<server-ip>:4533`, create the admin user, and it scans the folder.
 Point any Subsonic client at that URL — Amperfy or play:Sub on iOS,
 Supersonic/Feishin/Tempo on macOS and Linux — or use the web UI.
+
+### RSS (FreshRSS)
+
+Open FreshRSS at `http://<server-ip>:8082` (or `https://rss.<domain>`). On
+first run it shows an installer — choose **SQLite** for the database and
+create the admin account. Then add feeds from the web UI; it refreshes them
+on a built-in cron. Mobile/desktop clients that speak the Google Reader or
+Fever API (Reeder, NetNewsWire, FeedMe, …) can sync against the same URL.
 
 ### AppFlowy (self-hosted workspace)
 
