@@ -114,13 +114,12 @@ services:
       - GOTRUE_MAILER_AUTOCONFIRM=${GOTRUE_MAILER_AUTOCONFIRM:-true}
 
   appflowy_cloud:
-    # Build from the open-source repo instead of the pre-built image.
-    # The pre-built appflowyinc/appflowy_cloud binary includes proprietary license
-    # enforcement (1-user limit on the free plan) that is NOT in the public source.
-    # Building from source gives an unrestricted binary.
-    build:
-      context: https://github.com/AppFlowy-IO/AppFlowy-Cloud.git
-      dockerfile: Dockerfile
+    # Use a locally built image instead of the pre-built appflowyinc/appflowy_cloud.
+    # The pre-built binary includes proprietary license enforcement (1-user limit on
+    # the free plan) that is NOT in the public source code. Build with:
+    #   podman build https://github.com/AppFlowy-IO/AppFlowy-Cloud.git \
+    #     -t localhost/appflowy_cloud:custom
+    image: localhost/appflowy_cloud:custom
     container_name: appflowy_cloud
     restart: unless-stopped
     environment:
