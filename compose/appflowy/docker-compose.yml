@@ -75,7 +75,12 @@ services:
       - ${STORAGE_ROOT:-../../data}/appflowy/minio:/data
 
   gotrue:
-    image: docker.io/appflowyinc/gotrue:${GOTRUE_VERSION:-latest}
+    # Component images are pinned BY DIGEST (not :latest) so `pull` can't drift
+    # them out of sync with the source-built appflowy_cloud:custom — that custom
+    # build is what lifts the 1-user seat limit, so the rest of the stack must
+    # stay matched to it. Override any with the matching *_IMAGE env var.
+    # gotrue: no upstream version label; digest as of 2026-05-25.
+    image: ${APPFLOWY_GOTRUE_IMAGE:-docker.io/appflowyinc/gotrue@sha256:f135065785a4d76f7e61cced1cef9ee21d46c11b1f434881c02c89040dad1731}
     container_name: appflowy_gotrue
     restart: unless-stopped
     depends_on:
@@ -150,7 +155,10 @@ services:
       # the stack runs without an OpenAI key or the extra containers.
       - AI_ENABLED=${AI_ENABLED:-false}
     healthcheck:
-      test: "curl --fail http://127.0.0.1:8000/api/health || exit 1"
+      # The source-built binary serves liveness at /health (the prebuilt
+      # appflowyinc image used /api/health, which 404s here and left the
+      # container permanently "unhealthy", blocking web/admin/worker/nginx).
+      test: "curl --fail http://127.0.0.1:8000/health || exit 1"
       interval: 5s
       timeout: 5s
       retries: 12
@@ -163,7 +171,8 @@ services:
         condition: service_started
 
   admin_frontend:
-    image: docker.io/appflowyinc/admin_frontend:${APPFLOWY_ADMIN_FRONTEND_VERSION:-latest}
+    # admin_frontend: main build, revision 71d5fd65; digest as of 2026-05-31.
+    image: ${APPFLOWY_ADMIN_FRONTEND_IMAGE:-docker.io/appflowyinc/admin_frontend@sha256:f9f64f5404e5205d073a7c5c93ea72c4f515b561d71fa3ea00779509f61d9883}
     container_name: appflowy_admin
     restart: unless-stopped
     environment:
@@ -176,7 +185,8 @@ services:
         condition: service_healthy
 
   appflowy_web:
-    image: docker.io/appflowyinc/appflowy_web:${APPFLOWY_WEB_VERSION:-latest}
+    # appflowy_web: version 0.14.9; digest as of 2026-06-02.
+    image: ${APPFLOWY_WEB_IMAGE:-docker.io/appflowyinc/appflowy_web@sha256:4971ed8dc656e86e59059feaa6bae5a1d72d7e51dbe2220054044908ca711b95}
     container_name: appflowy_web
     restart: unless-stopped
     environment:
@@ -188,7 +198,8 @@ services:
         condition: service_healthy
 
   appflowy_worker:
-    image: docker.io/appflowyinc/appflowy_worker:${APPFLOWY_WORKER_VERSION:-latest}
+    # appflowy_worker: main build, revision 71d5fd65; digest as of 2026-05-31.
+    image: ${APPFLOWY_WORKER_IMAGE:-docker.io/appflowyinc/appflowy_worker@sha256:f06c0beb2489c940757da820e27215c79dd9fd3f86caff5d172521a571b276c0}
     container_name: appflowy_worker
     restart: unless-stopped
     environment:
