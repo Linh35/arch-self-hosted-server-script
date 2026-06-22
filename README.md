@@ -309,6 +309,10 @@ Unlike most of the stack, Paperless keeps its **own login** even behind the
 perimeter (it holds personal documents). The superuser is created automatically
 on first start from `PAPERLESS_ADMIN_*`.
 
+> Full step-by-step bring-up for Paperless **and** SearXNG (env, DNS records,
+> Caddy, first login, and the gotchas we hit) is in
+> [`docs/paperless-searxng-setup.md`](docs/paperless-searxng-setup.md).
+
 Setup:
 
 1. `cp compose/paperless/.env.example compose/paperless/.env` and edit it:
