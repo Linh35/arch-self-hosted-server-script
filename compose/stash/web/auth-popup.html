@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sign in to Stash</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f9fafb;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .container {
+      background: white;
+      padding: 32px;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+      width: 100%;
+      max-width: 320px;
+    }
+    .logo {
+      width: 48px;
+      height: 48px;
+      background: #6366f1;
+      color: white;
+      font-size: 24px;
+      font-weight: 700;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 16px;
+    }
+    h1 { font-size: 20px; text-align: center; margin-bottom: 8px; }
+    .subtitle { color: #6b7280; text-align: center; margin-bottom: 24px; font-size: 14px; }
+    .form { display: flex; flex-direction: column; gap: 12px; }
+    input {
+      padding: 10px 12px;
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+    input:focus { outline: none; border-color: #6366f1; }
+    .btn {
+      padding: 10px;
+      background: #6366f1;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+    }
+    .btn:hover { background: #4f46e5; }
+    .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .error { color: #ef4444; font-size: 13px; text-align: center; margin-top: 12px; }
+    .success {
+      text-align: center;
+      color: #059669;
+      font-size: 14px;
+    }
+    .success-icon {
+      font-size: 48px;
+      margin-bottom: 16px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div id="login-view">
+      <div class="logo">S</div>
+      <h1>Sign in to Stash</h1>
+      <p class="subtitle">Sign in once to save without prompts</p>
+      <form class="form" id="auth-form">
+        <input type="email" id="email" placeholder="Email" required>
+        <input type="password" id="password" placeholder="Password" required>
+        <button type="submit" class="btn" id="submit-btn">Sign In</button>
+      </form>
+      <p class="error" id="error"></p>
+    </div>
+    <div id="success-view" style="display: none;">
+      <div class="success">
+        <div class="success-icon">&#10003;</div>
+        <p>Signed in! This window will close.</p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const CONFIG = {
+      SUPABASE_URL: 'https://YOUR_PROJECT_ID.supabase.co',
+      SUPABASE_ANON_KEY: 'YOUR_SUPABASE_ANON_KEY',
+    };
+
+    // Check if we already have a valid session
+    async function checkExistingSession() {
+      try {
+        const stored = localStorage.getItem('stash_session');
+        if (stored) {
+          const session = JSON.parse(stored);
+          if (session && session.access_token) {
+            // Verify token is still valid by checking expiry
+            const payload = JSON.parse(atob(session.access_token.split('.')[1]));
+            if (payload.exp * 1000 > Date.now()) {
+              // Token still valid, send it back
+              sendTokenToOpener(session);
+              return true;
+            }
+          }
+        }
+      } catch(e) {}
+      return false;
+    }
+
+    function sendTokenToOpener(session) {
+      if (window.opener) {
+        window.opener.postMessage({
+          type: 'stash-auth',
+          session: session
+        }, '*');
+        document.getElementById('login-view').style.display = 'none';
+        document.getElementById('success-view').style.display = 'block';
+        setTimeout(() => window.close(), 1000);
+      }
+    }
+
+    // Check for existing session on load
+    checkExistingSession();
+
+    document.getElementById('auth-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+      const btn = document.getElementById('submit-btn');
+      const error = document.getElementById('error');
+
+      btn.disabled = true;
+      btn.textContent = 'Signing in...';
+      error.textContent = '';
+
+      try {
+        const res = await fetch(`${CONFIG.SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+          method: 'POST',
+          headers: {
+            'apikey': CONFIG.SUPABASE_ANON_KEY,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ email, password }),
+        });
+
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.error_description || 'Login failed');
+        }
+
+        const session = await res.json();
+
+        // Store session in this domain's localStorage
+        localStorage.setItem('stash_session', JSON.stringify(session));
+
+        // Send to opener
+        sendTokenToOpener(session);
+
+      } catch(err) {
+        error.textContent = err.message;
+        btn.disabled = false;
+        btn.textContent = 'Sign In';
+      }
+    });
+  </script>
+</body>
+</html>

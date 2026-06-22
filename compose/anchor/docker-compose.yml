@@ -1,0 +1,26 @@
+# Anchor — offline-first self-hosted notes (rich-text editor, note sharing,
+# mobile + web, optional OIDC). Reach it at notes.<domain> or
+# http://<server-ip>:8090. It bundles its own PostgreSQL inside the single
+# container, so all state lives in one /data bind-mount under STORAGE_ROOT.
+# Account-based: sign up at the web UI; lock it down with USER_SIGNUP=disabled
+# once your account exists.
+#
+# The image's entrypoint runs as root and hands /data to its postgres/app user
+# (postgres can't run as root), so the rootless bind-mount just works.
+services:
+  anchor:
+    image: ghcr.io/zhfahim/anchor:latest
+    container_name: anchor
+    restart: unless-stopped
+    ports:
+      - "8090:3000"
+    volumes:
+      - ${STORAGE_ROOT:-../../data}/anchor:/data
+    environment:
+      # Caddy terminates TLS in front, so this is the https name.
+      - APP_URL=https://notes.${DOMAIN:-localhost}
+      - JWT_SECRET=${ANCHOR_JWT_SECRET:-change_me_openssl_rand_hex_32}
+      - PG_PASSWORD=${ANCHOR_PG_PASSWORD:-password}
+      # signup mode: enabled | review | disabled
+      - USER_SIGNUP=${ANCHOR_USER_SIGNUP:-enabled}
+      - TZ=${TZ:-UTC}

@@ -154,3 +154,34 @@ search.{$DOMAIN} {
 	import site
 	reverse_proxy {$UPSTREAM_HOST}:8089   # SearXNG
 }
+
+# --- Notes, tools & media -------------------------------------------------
+notes.{$DOMAIN} {
+	import site
+	reverse_proxy {$UPSTREAM_HOST}:8090   # Anchor (notes)
+}
+
+wallos.{$DOMAIN} {
+	import site
+	reverse_proxy {$UPSTREAM_HOST}:8091   # Wallos (subscriptions)
+}
+
+qr.{$DOMAIN} {
+	import site
+	reverse_proxy {$UPSTREAM_HOST}:8092   # MiniQR
+}
+
+stash.{$DOMAIN} {
+	import site
+	reverse_proxy {$UPSTREAM_HOST}:9999   # Stash (read-later frontend)
+}
+
+# --- Self-hosted Supabase -------------------------------------------------
+# Kong gateway: serves the Supabase API (/rest, /auth, /storage, /functions)
+# that the Stash frontend calls, plus the Studio dashboard at / (basic auth,
+# DASHBOARD_USERNAME/PASSWORD in compose/supabase/.env). Keep KONG_HTTP_PORT in
+# sync with that .env.
+supabase.{$DOMAIN} {
+	import site
+	reverse_proxy {$UPSTREAM_HOST}:8200   # Supabase (Kong gateway)
+}

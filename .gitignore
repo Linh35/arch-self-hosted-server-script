@@ -26,3 +26,7 @@ compose/immich/example.env
 .DS_Store
 .idea/
 .vscode/
+
+# Stash frontend config holds the (client) anon key + user id — keep real one out of git
+compose/stash/web/config.js
+!compose/stash/web/config.js.example

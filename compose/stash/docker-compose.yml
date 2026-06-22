@@ -1,0 +1,23 @@
+# Stash — self-hosted read-later app (kbroose/stash): save articles &
+# highlights, tag/folder them, full-text search. Reach it at stash.<domain> or
+# http://<server-ip>:9999.
+#
+# This is just the static PWA frontend, served by nginx. Its entire backend is
+# the self-hosted **Supabase** stack (compose/supabase) — Postgres, Auth,
+# PostgREST, Storage, Edge Functions — which web/config.js points at via
+# supabase.<domain>. So this stack is stateless (all data lives in Supabase);
+# bring compose/supabase up first.
+#
+# Single-user mode: no login screen (the LAN/WARP perimeter is the access
+# control). One Supabase user backs the data; RLS is relaxed for the anon key
+# on this private stack. To re-point at a different domain, edit
+# web/config.js (SUPABASE_URL + the anon key + USER_ID).
+services:
+  stash:
+    image: docker.io/library/nginx:alpine
+    container_name: stash
+    restart: unless-stopped
+    ports:
+      - "9999:80"
+    volumes:
+      - ./web:/usr/share/nginx/html:ro

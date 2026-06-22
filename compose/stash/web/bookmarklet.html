@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Install Stash Bookmarklet</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .container {
+      background: white;
+      padding: 48px;
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+      max-width: 500px;
+      text-align: center;
+    }
+    .logo {
+      width: 64px;
+      height: 64px;
+      background: #6366f1;
+      color: white;
+      font-size: 32px;
+      font-weight: 700;
+      border-radius: 16px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 24px;
+    }
+    h1 { font-size: 28px; margin-bottom: 12px; }
+    .subtitle { color: #6b7280; margin-bottom: 32px; }
+    .setup-form {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    .setup-form input {
+      padding: 12px 16px;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      font-size: 15px;
+    }
+    .setup-form input:focus {
+      outline: none;
+      border-color: #6366f1;
+    }
+    .btn {
+      padding: 12px 24px;
+      background: #6366f1;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 500;
+      cursor: pointer;
+    }
+    .btn:hover { background: #4f46e5; }
+    .bookmarklet-section { display: none; }
+    .bookmarklet-section.show { display: block; }
+    .bookmarklet {
+      display: inline-block;
+      padding: 16px 32px;
+      background: #6366f1;
+      color: white;
+      font-size: 18px;
+      font-weight: 600;
+      border-radius: 12px;
+      text-decoration: none;
+      margin-bottom: 24px;
+      cursor: grab;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .bookmarklet:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(99, 102, 241, 0.4);
+    }
+    .instructions {
+      text-align: left;
+      background: #f9fafb;
+      padding: 24px;
+      border-radius: 12px;
+      margin-top: 24px;
+    }
+    .instructions h3 { margin-bottom: 16px; font-size: 16px; }
+    .instructions ol { margin-left: 20px; }
+    .instructions li { margin-bottom: 12px; color: #374151; }
+    .instructions code {
+      background: #e5e7eb;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 13px;
+    }
+    .note {
+      margin-top: 24px;
+      padding: 16px;
+      background: #fef3c7;
+      border-radius: 8px;
+      font-size: 14px;
+      color: #92400e;
+    }
+    .success {
+      background: #d1fae5;
+      color: #065f46;
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 16px;
+    }
+    .input-help {
+      font-size: 13px;
+      color: #6b7280;
+      text-align: left;
+      margin-top: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="logo">S</div>
+    <h1>Stash Bookmarklet</h1>
+    <p class="subtitle">Save pages and highlights - no login required</p>
+
+    <div id="setup-section">
+      <form class="setup-form" id="setup-form">
+        <input type="text" id="user-id" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" required pattern="[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}">
+        <p class="input-help">Your user ID from Supabase (Authentication > Users)</p>
+        <button type="submit" class="btn">Generate Bookmarklet</button>
+      </form>
+    </div>
+
+    <div class="bookmarklet-section" id="bookmarklet-section">
+      <div class="success">Your bookmarklet is ready!</div>
+
+      <a class="bookmarklet" id="bookmarklet-link" href="#">
+        Save to Stash
+      </a>
+
+      <div class="instructions">
+        <h3>How to install:</h3>
+        <ol>
+          <li><strong>Drag</strong> the "Save to Stash" button above to your <strong>bookmarks bar</strong></li>
+          <li>If your bookmarks bar isn't visible, press <code>Cmd+Shift+B</code></li>
+          <li>Click it on any page to save - that's it!</li>
+        </ol>
+      </div>
+
+      <div class="note">
+        <strong>Tip:</strong> Select text first, then click the bookmarklet to save just that highlight!
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Replace with your Supabase project URL
+    const CONFIG = {
+      SUPABASE_URL: 'https://YOUR_PROJECT_ID.supabase.co',
+    };
+
+    document.getElementById('setup-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const userId = document.getElementById('user-id').value.trim();
+      const functionUrl = CONFIG.SUPABASE_URL + '/functions/v1/save-page';
+
+      // Generate bookmarklet with client-side extraction
+      const bookmarkletCode = `javascript:(async()=>{const f='${functionUrl}',uid='${userId}';const t=document.createElement('div');t.textContent='Saving...';t.style.cssText='position:fixed;bottom:20px;right:20px;padding:12px 24px;background:%236366f1;color:white;border-radius:8px;font:500 14px system-ui;z-index:999999';document.body.appendChild(t);try{const sel=window.getSelection().toString().trim();const url=location.href;const siteName=location.hostname.replace('www.','');const ps=[];if(!sel){document.querySelectorAll('article p,main p,.article-body p,.post-content p,.entry-content p,[role=article] p').forEach(el=>{const x=el.innerText?.trim();if(x&&x.length>20)ps.push(x)});if(ps.length<3){document.querySelectorAll('p').forEach(el=>{const x=el.innerText?.trim();if(x&&x.length>50)ps.push(x)})}}const content=ps.join('\\n\\n');const title=document.querySelector('h1')?.innerText?.trim()||document.title;const pf={title:title,content:sel?'':content,excerpt:'',site_name:siteName,author:null};const res=await fetch(f,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:url,user_id:uid,highlight:sel||null,source:'bookmarklet',prefetched:pf})});if(res.ok){t.textContent='Saved!';t.style.background='%2310b981'}else{const err=await res.text();t.textContent='Failed: '+err.slice(0,50);t.style.background='%23ef4444'}setTimeout(()=>t.remove(),3000)}catch(e){t.textContent='Error: '+e.message;t.style.background='%23ef4444';setTimeout(()=>t.remove(),5000)}})();`;
+
+      document.getElementById('bookmarklet-link').href = bookmarkletCode;
+      document.getElementById('setup-section').style.display = 'none';
+      document.getElementById('bookmarklet-section').classList.add('show');
+    });
+  </script>
+</body>
+</html>

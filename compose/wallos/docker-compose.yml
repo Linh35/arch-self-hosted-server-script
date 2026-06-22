@@ -1,0 +1,21 @@
+# Wallos — self-hosted personal subscription / recurring-expense tracker.
+# Visualise what you pay monthly/yearly, get renewal reminders, budget. Reach
+# it at wallos.<domain> or http://<server-ip>:8091. Stores a local SQLite DB
+# plus any uploaded logos under STORAGE_ROOT.
+#
+# The image runs as root and its startup chowns the mounted db/logos to its web
+# user (honouring PUID/PGID), so the rootless bind-mounts just work.
+services:
+  wallos:
+    image: docker.io/bellamy/wallos:latest
+    container_name: wallos
+    restart: unless-stopped
+    ports:
+      - "8091:80"
+    environment:
+      - TZ=${TZ:-UTC}
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+    volumes:
+      - ${STORAGE_ROOT:-../../data}/wallos/db:/var/www/html/db
+      - ${STORAGE_ROOT:-../../data}/wallos/logos:/var/www/html/images/uploads/logos

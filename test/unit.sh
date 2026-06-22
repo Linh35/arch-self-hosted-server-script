@@ -185,6 +185,10 @@ while IFS= read -r f; do
   # its media/DB via UPLOAD_LOCATION/DB_DATA_LOCATION in compose/immich/.env,
   # which bootstrap points under STORAGE_ROOT — not via the compose file itself.
   [[ "$name" == immich ]] && continue
+  # MiniQR is a stateless static site — no data to pin under STORAGE_ROOT.
+  [[ "$name" == miniqr ]] && continue
+  # Stash is just the static frontend; all its state lives in the supabase stack.
+  [[ "$name" == stash ]] && continue
   if grep -q 'STORAGE_ROOT' "$f"; then ok "$name compose pins data under STORAGE_ROOT"; else no "$name compose pins data under STORAGE_ROOT"; fi
 done < <(find compose -mindepth 2 -maxdepth 2 -name docker-compose.yml | sort)
 
@@ -204,7 +208,7 @@ fi
 section "caddy: reverse proxy"
 
 cf=compose/caddy/Caddyfile
-for pair in "music:4533" "photos:2283" "files:3923" "books:8080" "read:8083" "docs:8087" "search:8089"; do
+for pair in "music:4533" "photos:2283" "files:3923" "books:8080" "read:8083" "docs:8087" "search:8089" "notes:8090" "wallos:8091" "qr:8092" "stash:9999" "supabase:8200"; do
   host=${pair%%:*} port=${pair##*:}
   if grep -q "^${host}.{\$DOMAIN}" "$cf" && grep -q "${port}" "$cf"; then
     ok "Caddyfile routes ${host}.\$DOMAIN to :${port}"

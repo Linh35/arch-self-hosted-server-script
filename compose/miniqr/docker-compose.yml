@@ -1,0 +1,14 @@
+# MiniQR — self-hosted QR-code generator (styled codes, presets, batch export,
+# import from data). Reach it at qr.<domain> or http://<server-ip>:8092.
+#
+# Stateless static site — nothing to persist, so no volume/STORAGE_ROOT here.
+# Upstream's compose ships an extra nginx proxy in front of the app; we don't
+# need it (Caddy already fronts the stack), so we publish the app's own :8080
+# directly.
+services:
+  mini-qr:
+    image: ghcr.io/lyqht/mini-qr:latest
+    container_name: miniqr
+    restart: unless-stopped
+    ports:
+      - "8092:8080"

@@ -34,6 +34,11 @@ Trust org — so the tunnel acts as a VPN, not a public front door.
 | slskd (Soulseek) | 5030    | `slskd.<domain>`     | LAN / WARP tunnel         |
 | Paperless-ngx    | 8087    | `docs.<domain>`      | LAN / WARP tunnel         |
 | SearXNG          | 8089    | `search.<domain>`    | LAN / WARP tunnel         |
+| Anchor (notes)   | 8090    | `notes.<domain>`     | LAN / WARP tunnel         |
+| Wallos           | 8091    | `wallos.<domain>`    | LAN / WARP tunnel         |
+| MiniQR           | 8092    | `qr.<domain>`        | LAN / WARP tunnel         |
+| Stash            | 9999    | `stash.<domain>`     | LAN / WARP tunnel         |
+| Supabase (Kong)  | 8200    | `supabase.<domain>`  | LAN / WARP tunnel         |
 
 Caddy puts a clean name and HTTPS in front of each service, so you reach
 them at `https://music.<domain>` instead of `http://<server-ip>:4533`. The
@@ -59,6 +64,11 @@ run with as little auth as each app allows:
 | Immich      | no anonymous mode — register the first user (becomes admin), who creates the rest |
 | Paperless   | own login — a superuser is auto-created from `PAPERLESS_ADMIN_*` in `compose/paperless/.env` on first run |
 | SearXNG     | none (the LAN/WARP perimeter is the access control) |
+| Anchor      | account-based — sign up at `notes.<domain>`; set `ANCHOR_USER_SIGNUP=disabled` after to lock signups |
+| Wallos      | account-based — create your account on first run at `wallos.<domain>` |
+| MiniQR      | none (stateless generator) |
+| Stash       | none — single-user mode, no login (perimeter is the access control); data lives in the self-hosted Supabase |
+| Supabase    | Studio dashboard login is `DASHBOARD_USERNAME`/`DASHBOARD_PASSWORD` in `compose/supabase/.env` (default `admin`/`admin`) |
 
 Anyone on the LAN or any WARP-enrolled device has this access, including
 delete on Copyparty. If that perimeter isn't fully trusted, add per-app auth.
@@ -351,6 +361,41 @@ which swaps the assets in `compose/searxng/brand/`. So this stack is built
 locally (`localhost/selfhost-searxng`) rather than pulled — `manage.sh pull`
 leaves it alone; run `cd compose/searxng && podman-compose build` to rebase on
 a newer upstream SearXNG, or to change the logo edit `brand/` and rebuild.
+
+### Read-later (Stash) + self-hosted Supabase
+
+`compose/stash` is **Stash** (kbroose/stash) — a read-later app: save articles &
+highlights, tag/folder them, full-text search. It's only a static PWA frontend
+(served by nginx); its entire backend is a **self-hosted Supabase** stack in
+`compose/supabase`. Two stacks, one uses the other.
+
+`compose/supabase` is the official Supabase self-hosting bundle (Postgres, Auth,
+PostgREST, Storage, Edge Functions, Studio, Kong gateway — ~11 services),
+vendored and adapted: data is bind-mounted under `STORAGE_ROOT`, and the Kong
+gateway is the one published port (`8200`), fronted by Caddy at
+`supabase.<domain>`. That URL serves both the API the Stash frontend calls
+(`/rest`, `/auth`, `/storage`, `/functions`) and the **Studio** admin dashboard
+(at `/`, basic-auth `DASHBOARD_*`). It's a general-purpose Supabase — other apps
+can use it too.
+
+> Heads-up: Supabase is a whole Backend-as-a-Service platform (~6.6 GB of
+> images, 2–4 GB RAM). It's heavy because the app outsources its database, auth,
+> API and storage to it. A single-container SQLite read-later app (e.g. Readeck)
+> is far lighter if you don't need Supabase.
+
+Setup:
+
+1. `cp compose/supabase/.env.example compose/supabase/.env` and fill it in —
+   generate the secrets and the anon/service JWT keys with
+   `compose/supabase/utils/generate-keys.sh`. Set `API_EXTERNAL_URL` /
+   `SUPABASE_PUBLIC_URL` to `https://supabase.<domain>` and `SITE_URL` to
+   `https://stash.<domain>`.
+2. Add `supabase` and `stash` DNS records (like the other names), then
+   `./scripts/manage.sh up`.
+3. Apply Stash's schema and create the single user (see
+   `compose/supabase/` notes); set `SUPABASE_URL` / `SUPABASE_ANON_KEY` /
+   `USER_ID` in `compose/stash/web/config.js`. Single-user mode relaxes RLS so
+   the anon key works behind the perimeter — there's no login.
 
 ### Reverse proxy (Caddy)
 
