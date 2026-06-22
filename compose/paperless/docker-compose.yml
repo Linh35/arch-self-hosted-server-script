@@ -1,0 +1,115 @@
+# Paperless-ngx — self-hosted document management: drop in PDFs/scans/images,
+# it OCRs them, then tags, indexes and full-text-searches the whole archive.
+# Reach it at docs.<domain> or http://<server-ip>:8087. Like the rest of the
+# stack it lives behind the LAN/WARP perimeter, but it ALSO has its own login —
+# a superuser is auto-created from PAPERLESS_ADMIN_* on first start.
+#
+# Adapted from the upstream docker-compose.postgres-tika.yml
+# (https://github.com/paperless-ngx/paperless-ngx). Changes for this stack:
+#   * TLS is terminated by the stack's Caddy, so the webserver serves plain HTTP
+#     on one published host port (8087); Caddy proxies docs.{$DOMAIN} -> :8087.
+#   * All state (db, redis, documents, search index) is bind-mounted under
+#     STORAGE_ROOT (the btrfs pool) like every other stack, not named volumes.
+#   * Gotenberg + Tika are included so Office files (docx/odt/xlsx/...) and
+#     emails are converted and OCR'd too, not just PDFs and images.
+
+services:
+  # Redis task broker — required by Paperless for its async consume/OCR queue.
+  broker:
+    image: docker.io/library/redis:8
+    container_name: paperless_broker
+    restart: unless-stopped
+    volumes:
+      - ${STORAGE_ROOT:-../../data}/paperless/redis:/data
+
+  # PostgreSQL — Paperless's database. Postgres is recommended over SQLite for
+  # the full-text search and tagging this app leans on.
+  # Pinned to 16 (not 18): postgres:18 moved its data dir to /var/lib/postgresql
+  # (version-subdir layout) and refuses the classic /var/lib/postgresql/data
+  # mount this stack uses. 16 is what the AppFlowy stack runs too.
+  db:
+    image: docker.io/library/postgres:16
+    container_name: paperless_db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=paperless
+      - POSTGRES_USER=paperless
+      - POSTGRES_PASSWORD=${PAPERLESS_DB_PASSWORD:-paperless}
+    volumes:
+      - ${STORAGE_ROOT:-../../data}/paperless/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U paperless"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Gotenberg — converts Office documents to PDF so they can be archived/OCR'd.
+  # JavaScript is disabled and the file access list is scoped, per upstream.
+  gotenberg:
+    image: docker.io/gotenberg/gotenberg:8.25
+    container_name: paperless_gotenberg
+    restart: unless-stopped
+    command:
+      - "gotenberg"
+      - "--chromium-disable-javascript=true"
+      - "--chromium-allow-list=file:///tmp/.*"
+
+  # Apache Tika — extracts text/metadata from Office docs and emails for Paperless.
+  tika:
+    image: docker.io/apache/tika:latest
+    container_name: paperless_tika
+    restart: unless-stopped
+
+  webserver:
+    image: ghcr.io/paperless-ngx/paperless-ngx:latest
+    container_name: paperless
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      broker:
+        condition: service_started
+      gotenberg:
+        condition: service_started
+      tika:
+        condition: service_started
+    ports:
+      - "8087:8000"   # the only Paperless port on the host; Caddy proxies here
+    volumes:
+      - ${STORAGE_ROOT:-../../data}/paperless/data:/usr/src/paperless/data
+      - ${STORAGE_ROOT:-../../data}/paperless/media:/usr/src/paperless/media
+      - ${STORAGE_ROOT:-../../data}/paperless/export:/usr/src/paperless/export
+      - ${STORAGE_ROOT:-../../data}/paperless/consume:/usr/src/paperless/consume
+    environment:
+      # --- wiring to the sidecar services -----------------------------------
+      - PAPERLESS_REDIS=redis://broker:6379
+      - PAPERLESS_DBHOST=db
+      - PAPERLESS_DBNAME=paperless
+      - PAPERLESS_DBUSER=paperless
+      - PAPERLESS_DBPASS=${PAPERLESS_DB_PASSWORD:-paperless}
+      - PAPERLESS_TIKA_ENABLED=1
+      - PAPERLESS_TIKA_GOTENBERG_ENDPOINT=http://gotenberg:3000
+      - PAPERLESS_TIKA_ENDPOINT=http://tika:9998
+      # --- reverse proxy ----------------------------------------------------
+      # PAPERLESS_URL makes the docs.<domain> origin a trusted CSRF origin so
+      # login over the Caddy HTTPS name works. ALLOWED_HOSTS=* (safe behind the
+      # LAN/WARP perimeter) keeps raw http://<server-ip>:8087 working too.
+      - PAPERLESS_URL=https://docs.${DOMAIN:-localhost}
+      - PAPERLESS_ALLOWED_HOSTS=*
+      # --- app config -------------------------------------------------------
+      - PAPERLESS_TIME_ZONE=${TZ:-UTC}
+      - PAPERLESS_OCR_LANGUAGE=${PAPERLESS_OCR_LANGUAGE:-eng}
+      - PAPERLESS_SECRET_KEY=${PAPERLESS_SECRET_KEY:-change_me_please}
+      # Auto-create the superuser on first run (no separate setup step).
+      - PAPERLESS_ADMIN_USER=${PAPERLESS_ADMIN_USER:-admin}
+      - PAPERLESS_ADMIN_PASSWORD=${PAPERLESS_ADMIN_PASSWORD:-admin}
+      # Optional: poll the consume folder instead of relying on inotify. Leave
+      # unset for instant pickup; set to e.g. 60 if your FS misses inotify events.
+      - PAPERLESS_CONSUMER_POLLING=${PAPERLESS_CONSUMER_POLLING:-0}
+      # UID/GID the paperless process runs as. MUST be non-zero: the image runs
+      # `usermod -u $USERMAP_UID paperless` on boot, which fails on 0 (root is
+      # already uid 0) — same constraint as FreshRSS. The root-stage init chowns
+      # the bind-mounts to this uid first, so writes work regardless of who owns
+      # the host dir (rootless podman maps it into the subuid range).
+      - USERMAP_UID=${PUID:-1000}
+      - USERMAP_GID=${PGID:-1000}

@@ -32,6 +32,8 @@ Trust org — so the tunnel acts as a VPN, not a public front door.
 | SpotiFLAC-web    | 7233    | `flac.<domain>`      | LAN / WARP tunnel         |
 | Lidarr           | 8686    | `lidarr.<domain>`    | LAN / WARP tunnel         |
 | slskd (Soulseek) | 5030    | `slskd.<domain>`     | LAN / WARP tunnel         |
+| Paperless-ngx    | 8087    | `docs.<domain>`      | LAN / WARP tunnel         |
+| SearXNG          | 8089    | `search.<domain>`    | LAN / WARP tunnel         |
 
 Caddy puts a clean name and HTTPS in front of each service, so you reach
 them at `https://music.<domain>` instead of `http://<server-ip>:4533`. The
@@ -55,6 +57,8 @@ run with as little auth as each app allows:
 | Calibre-Web | `admin` / `admin123` (built-in default) — flip on Anonymous Browsing in its admin settings for no login |
 | AppFlowy    | account-based — sign up at `flowy.<domain>` (first signup auto-confirmed). Admin console login is set by `GOTRUE_ADMIN_*` in `compose/appflowy/.env` |
 | Immich      | no anonymous mode — register the first user (becomes admin), who creates the rest |
+| Paperless   | own login — a superuser is auto-created from `PAPERLESS_ADMIN_*` in `compose/paperless/.env` on first run |
+| SearXNG     | none (the LAN/WARP perimeter is the access control) |
 
 Anyone on the LAN or any WARP-enrolled device has this access, including
 delete on Copyparty. If that perimeter isn't fully trusted, add per-app auth.
@@ -291,6 +295,56 @@ so no OpenAI key is needed; to enable AI chat / semantic search, set
 `AI_ENABLED=true`, add `AI_OPENAI_API_KEY`, and re-add the upstream `ai` (and
 optional `appflowy_search`) services — see the
 [upstream compose](https://github.com/AppFlowy-IO/AppFlowy-Cloud/blob/main/docker-compose.yml).
+
+### Documents (Paperless-ngx)
+
+`compose/paperless` runs **Paperless-ngx** — drop a PDF, scan or image into it
+and it OCRs the text, then tags, indexes and full-text-searches your whole
+document archive. It's a small cluster: the webserver, a Redis broker, a
+Postgres database, and Gotenberg + Tika (so Office files and emails are
+converted/OCR'd too). Only the webserver publishes a host port (`8087`); Caddy
+fronts it at `docs.<domain>`. All state lives under `$STORAGE_ROOT/paperless/`.
+
+Unlike most of the stack, Paperless keeps its **own login** even behind the
+perimeter (it holds personal documents). The superuser is created automatically
+on first start from `PAPERLESS_ADMIN_*`.
+
+Setup:
+
+1. `cp compose/paperless/.env.example compose/paperless/.env` and edit it:
+   set `DOMAIN`, generate `PAPERLESS_SECRET_KEY` (`openssl rand -hex 32`), and
+   set `PAPERLESS_DB_PASSWORD` + `PAPERLESS_ADMIN_PASSWORD`.
+2. `./scripts/manage.sh up` (first boot pulls a few images and runs DB
+   migrations — give it a minute).
+3. Open `https://docs.<domain>`, sign in as the admin you configured. Add docs
+   by dropping files into `$STORAGE_ROOT/paperless/consume/` (the watched
+   folder), or upload through the web UI.
+
+To OCR languages other than English, set `PAPERLESS_OCR_LANGUAGE` (e.g.
+`eng+vie`) and restart.
+
+### Search (SearXNG)
+
+`compose/searxng` runs **SearXNG** — a metasearch engine that queries Google,
+Bing, DuckDuckGo, Wikipedia, etc. on your behalf and proxies the results, so
+the upstreams never profile you. Single container on host port `8089`; Caddy
+fronts it at `search.<domain>`. No login (the perimeter is the access control),
+and the bot limiter is off (it only matters for public instances).
+
+Setup is just `cp compose/searxng/.env.example compose/searxng/.env`, set
+`DOMAIN`, and `./scripts/manage.sh up`. On the **first run** the image writes a
+default `settings.yml` with a random `secret_key` into `$STORAGE_ROOT/searxng/`
+— nothing to fill in. To customise engines, enable the JSON API, or turn on the
+image proxy, edit `$STORAGE_ROOT/searxng/settings.yml` and
+`./scripts/manage.sh restart`. Point Firefox/Chrome's default search at
+`https://search.<domain>/search?q=%s` to use it everywhere.
+
+The logo/favicon are a custom **"AL"** mark (letters set in Fraunces, baked to
+vector paths), built into a local image via `compose/searxng/Containerfile`
+which swaps the assets in `compose/searxng/brand/`. So this stack is built
+locally (`localhost/selfhost-searxng`) rather than pulled — `manage.sh pull`
+leaves it alone; run `cd compose/searxng && podman-compose build` to rebase on
+a newer upstream SearXNG, or to change the logo edit `brand/` and rebuild.
 
 ### Reverse proxy (Caddy)
 

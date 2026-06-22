@@ -1,0 +1,17 @@
+# Derived SearXNG image: swap the stock SearXNG wordmark/favicon for a custom
+# "AL" brand. The letters are set in Fraunces (SIL OFL) with their outlines
+# baked to vector paths, so no font is needed at view time. Built locally by
+# compose (image localhost/selfhost-searxng), so `manage.sh pull` of the
+# upstream tag won't clobber the branding — rebuild to pick up upstream changes.
+FROM docker.io/searxng/searxng:latest
+
+# The static file server serves a pre-compressed .br/.gz sibling in preference
+# to the plain file, so a replaced .svg only takes effect once the stale
+# compressed copies are removed. (The .png assets have no precompressed twins.)
+COPY brand/searxng.svg brand/searxng.png \
+     brand/favicon.svg brand/favicon.png \
+     brand/192.png brand/512.png \
+     /usr/local/searxng/searx/static/themes/simple/img/
+RUN d=/usr/local/searxng/searx/static/themes/simple/img && \
+    rm -f "$d/searxng.svg.br" "$d/searxng.svg.gz" \
+          "$d/favicon.svg.br" "$d/favicon.svg.gz"

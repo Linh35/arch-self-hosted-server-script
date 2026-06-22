@@ -1,0 +1,41 @@
+# SearXNG — self-hosted metasearch engine. Aggregates results from Google,
+# Bing, DuckDuckGo, Wikipedia, etc. and proxies them so the upstreams never see
+# you. Reach it at search.<domain> or http://<server-ip>:8089. Sits behind the
+# LAN/WARP perimeter like the rest of the stack; no login (the perimeter is the
+# access control), and the bot limiter is off (it only matters for public
+# instances and would need a separate redis/valkey).
+#
+# Config lives in a single bind-mounted directory under STORAGE_ROOT. On the
+# FIRST run the image writes a default settings.yml there and bakes in a random
+# secret_key — nothing to copy or fill in. To tweak engines, enable the JSON
+# API, turn on the image proxy, etc., edit $STORAGE_ROOT/searxng/settings.yml
+# and restart (see the README).
+#
+# NOTE: unlike the upstream searxng-docker compose we do NOT drop Linux caps.
+# That hardening is what forces the documented "remove cap_drop on the first
+# run" dance, because the root entrypoint needs CHOWN/SETUID to create and own
+# the config under rootless podman. Default caps = first run just works.
+
+services:
+  searxng:
+    # Locally built from Containerfile: stock SearXNG + the custom "AL" (Fraunces)
+    # logo/favicon. Plain upstream image otherwise. `manage.sh pull` won't touch
+    # this local tag — run `podman-compose build` to rebase on a newer SearXNG.
+    build:
+      context: .
+      dockerfile: Containerfile
+    image: localhost/selfhost-searxng:latest
+    container_name: searxng
+    restart: unless-stopped
+    ports:
+      - "8089:8080"
+    volumes:
+      - ${STORAGE_ROOT:-../../data}/searxng:/etc/searxng:rw
+    environment:
+      # Public URL SearXNG generates links against (image proxy, OpenSearch).
+      # Caddy terminates TLS in front, so this is the https name.
+      - SEARXNG_BASE_URL=https://search.${DOMAIN:-localhost}/
+      - SEARXNG_HOSTNAME=search.${DOMAIN:-localhost}
+      - UWSGI_WORKERS=${SEARXNG_WORKERS:-4}
+      - UWSGI_THREADS=${SEARXNG_THREADS:-4}
+      - TZ=${TZ:-UTC}

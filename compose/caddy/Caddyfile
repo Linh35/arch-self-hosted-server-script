@@ -143,3 +143,14 @@ flowy.{$DOMAIN} {
 	import site
 	reverse_proxy {$UPSTREAM_HOST}:9000   # AppFlowy (internal nginx router)
 }
+
+# --- Documents & search ---------------------------------------------------
+docs.{$DOMAIN} {
+	import site
+	reverse_proxy {$UPSTREAM_HOST}:8087   # Paperless-ngx
+}
+
+search.{$DOMAIN} {
+	import site
+	reverse_proxy {$UPSTREAM_HOST}:8089   # SearXNG
+}

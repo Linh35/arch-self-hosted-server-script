@@ -204,7 +204,7 @@ fi
 section "caddy: reverse proxy"
 
 cf=compose/caddy/Caddyfile
-for pair in "music:4533" "photos:2283" "files:3923" "books:8080" "read:8083"; do
+for pair in "music:4533" "photos:2283" "files:3923" "books:8080" "read:8083" "docs:8087" "search:8089"; do
   host=${pair%%:*} port=${pair##*:}
   if grep -q "^${host}.{\$DOMAIN}" "$cf" && grep -q "${port}" "$cf"; then
     ok "Caddyfile routes ${host}.\$DOMAIN to :${port}"
