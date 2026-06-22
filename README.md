@@ -76,7 +76,9 @@ apps on iOS (Amperfy, play:Sub), macOS and Linux (Supersonic, Feishin,
 Tempo), plus its own web UI. A downloader (spotDL or deemix) drops files
 into the music folder; Navidrome indexes them.
 
-No email in here. I use Fastmail. Calendar is planned (Radicale).
+No email in here. I use Fastmail. Calendar is planned (Radicale). Notes on a
+possible self-hosted mailcow setup (and why "Railway + home failover over WARP"
+doesn't work) are in [`docs/email-self-hosting-design.md`](docs/email-self-hosting-design.md).
 
 ## Storage (RAID)
 
