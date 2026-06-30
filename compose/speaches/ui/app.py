@@ -1,34 +1,40 @@
-"""Custom Speaches Gradio UI, repointed to the GPU STT server.
+"""Custom Speaches Gradio UI, repointed to the GPU whisper-server.
 
 Bind-mounted over the image's src/speaches/ui/app.py (see docker-compose.yml),
 keeping `create_gradio_demo(config)` as the entry point. Differences vs stock:
 
   * Speech-to-Text tab first and selected by default. Its Transcribe button does
-    NOT use this container's CPU Whisper — it proxies to the GPU STT server
-    (GPU_STT_URL, e.g. https://stt-server.example.com), which runs Whisper
-    large-v3 on a ROCm GPU. Upload field is `audio`, response is {"text": ...}.
-  * Text-to-Speech tab kept, second (stock tab, unchanged — still local).
+    NOT use this container's CPU Whisper — it proxies to the GPU whisper-server
+    (whisper.cpp) at WHISPER_INFERENCE_URL: POST /inference, field `file`,
+    language=bg + translate=false (Bulgarian transcription, not English
+    translation), -> {"text": ...}.
+  * Text-to-Speech tab kept, second (stock tab, unchanged — still local CPU).
   * "Audio Chat" tab removed.
 
-OC worker (shared GPU) coordination:
-  The GPU also hosts an LLM ("OC worker" / Qwen) and can't run both at once. So:
-    - Opening the STT page pauses the worker (POST /qwen/stop) and arms an idle
-      timer.
-    - Each transcription keeps the worker paused and resets that timer.
-    - After QWEN_IDLE_RESTART_SECONDS (default 15 min) with no page load or
-      transcription, the worker is resumed (POST /qwen/start).
-  All worker control is best-effort: failures are logged and never block a
-  transcription.
+GPU sharing (the OC worker / Qwen and whisper-server can't co-reside):
+  stt-server exposes the swap as HTTP endpoints (no systemctl):
+    POST /qwen/stop  -> stops Qwen, starts whisper-server (whisper.* goes live)
+    POST /qwen/start -> stops whisper-server, restarts Qwen
+  So the UI:
+    - on page load: POST /qwen/stop to pre-warm whisper-server, arm an idle timer
+    - on transcribe: ensure whisper-server is up (waiting if it's still loading),
+      transcribe, and reset the idle timer
+    - after QWEN_IDLE_RESTART_SECONDS (default 900 = 15 min) with no page load or
+      transcription: POST /qwen/start to give the GPU back to Qwen
+  The idle timer never fires while a transcription is in flight. All worker
+  control is best-effort and logged; a control failure never silently corrupts a
+  transcription (the readiness wait will surface it).
 
 Heads-up: this overrides upstream source files, so a future `:latest-cpu` pull
 that changes the UI module layout / create_tts_tab signature could break the web
 UI — remove the app.py mount in docker-compose.yml to fall back to stock. The
-container's own HTTP API (/v1/audio/transcriptions, CPU) is unaffected.
+container's own /v1 API (CPU faster-whisper) is unaffected.
 """
 
 import asyncio
 import logging
 import os
+import tempfile
 import time
 from pathlib import Path
 
@@ -40,41 +46,79 @@ from speaches.ui.tabs.tts import create_tts_tab
 
 logger = logging.getLogger(__name__)
 
-# --- GPU STT backend (stt-server) -----------------------------------------
-GPU_STT_URL = os.getenv("GPU_STT_URL", "https://stt-server.example.com").rstrip("/")
-# Single POST; the server takes ~30s (it cycles the GPU worker), so allow margin.
-GPU_STT_READ_TIMEOUT = float(os.getenv("GPU_STT_READ_TIMEOUT", "300"))
-# Resume the OC worker after this long with no page load / transcription.
+# --- GPU whisper-server + Qwen control ------------------------------------
+GPU_CTL_URL = os.getenv("GPU_STT_URL", "https://stt-server.example.com").rstrip("/")
+WHISPER_URL = os.getenv("WHISPER_INFERENCE_URL", "https://whisper.example.com").rstrip("/")
+STT_LANGUAGE = os.getenv("STT_LANGUAGE", "bg")
+# Max time to wait for whisper-server to load on the GPU after /qwen/stop.
+WHISPER_READY_TIMEOUT = float(os.getenv("WHISPER_READY_TIMEOUT", "180"))
+# Read timeout for the actual /inference call (GPU is fast, but allow margin).
+INFERENCE_TIMEOUT = float(os.getenv("INFERENCE_TIMEOUT", "600"))
+# Give the GPU back to Qwen after this long with no page load / transcription.
 QWEN_IDLE_RESTART_SECONDS = float(os.getenv("QWEN_IDLE_RESTART_SECONDS", "900"))
 
-# --- OC worker (Qwen) idle-resume state -----------------------------------
 _state_lock = asyncio.Lock()
-_resume_deadline: float | None = None  # monotonic time to resume; None = disarmed
+_resume_deadline: float | None = None  # monotonic time to resume Qwen; None = disarmed
+_inflight = 0  # transcriptions in progress; the idle timer won't resume Qwen while > 0
 _timer_task: asyncio.Task | None = None
 
 
 async def _qwen(path: str) -> bool:
     try:
-        async with httpx.AsyncClient(timeout=httpx.Timeout(30.0, connect=10.0)) as client:
-            resp = await client.post(f"{GPU_STT_URL}{path}")
+        async with httpx.AsyncClient(timeout=httpx.Timeout(90.0, connect=10.0)) as client:
+            resp = await client.post(f"{GPU_CTL_URL}{path}")
             resp.raise_for_status()
         return True
     except Exception:
-        logger.exception("OC worker control failed: %s", path)
+        logger.exception("GPU worker control failed: %s", path)
         return False
 
 
+async def _whisper_ready() -> bool:
+    try:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(10.0, connect=10.0)) as client:
+            return (await client.get(f"{WHISPER_URL}/")).status_code < 500
+    except Exception:
+        return False
+
+
+async def _to_wav(src: str) -> str:
+    """Transcode any input (iPhone .m4a, mp3, ogg, webm, …) to 16 kHz mono
+    16-bit WAV — the only format whisper.cpp's /inference accepts (it returns
+    400 'Invalid request' for m4a). ffmpeg ships in the image."""
+    fd, out = tempfile.mkstemp(suffix=".wav")
+    os.close(fd)
+    proc = await asyncio.create_subprocess_exec(
+        "ffmpeg", "-y", "-i", src, "-ar", "16000", "-ac", "1", "-c:a", "pcm_s16le", out,
+        stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.PIPE,
+    )
+    _, err = await proc.communicate()
+    if proc.returncode != 0:
+        raise RuntimeError(f"ffmpeg could not decode the audio: {err.decode(errors='ignore')[-300:]}")
+    return out
+
+
 async def _arm() -> None:
-    """(Re)start the idle-resume countdown."""
+    """(Re)start the idle countdown to give the GPU back to Qwen."""
     global _resume_deadline
     async with _state_lock:
         _resume_deadline = time.monotonic() + QWEN_IDLE_RESTART_SECONDS
 
 
-async def _pause_worker() -> None:
-    """Pause the OC worker and (re)arm the idle-resume timer."""
-    await _arm()
-    await _qwen("/qwen/stop")
+async def _ensure_whisper_up(wait: bool) -> bool:
+    """Make sure whisper-server has the GPU. Idempotent: only calls /qwen/stop
+    when whisper isn't already serving, to avoid restarting it mid-session."""
+    if await _whisper_ready():
+        return True
+    await _qwen("/qwen/stop")  # stops Qwen -> starts whisper-server
+    if not wait:
+        return False
+    deadline = time.monotonic() + WHISPER_READY_TIMEOUT
+    while time.monotonic() < deadline:
+        if await _whisper_ready():
+            return True
+        await asyncio.sleep(3)
+    return False
 
 
 async def _timer_loop() -> None:
@@ -83,10 +127,14 @@ async def _timer_loop() -> None:
         await asyncio.sleep(10)
         async with _state_lock:
             due = _resume_deadline is not None and time.monotonic() >= _resume_deadline
-            if due:
-                _resume_deadline = None  # disarm before the (slow) network call
+            if due and _inflight > 0:
+                # A transcription is running — push the deadline out, don't resume.
+                _resume_deadline = time.monotonic() + QWEN_IDLE_RESTART_SECONDS
+                due = False
+            elif due:
+                _resume_deadline = None
         if due:
-            logger.info("OC worker idle for %ss — resuming", int(QWEN_IDLE_RESTART_SECONDS))
+            logger.info("GPU idle for %ss — handing back to Qwen", int(QWEN_IDLE_RESTART_SECONDS))
             await _qwen("/qwen/start")
 
 
@@ -97,50 +145,73 @@ def _ensure_timer() -> None:
 
 
 async def on_load() -> None:
-    # Runs on every page load; both calls are idempotent.
+    # Pre-warm whisper-server so the first transcription is quick. Don't block the
+    # page load waiting for the model to finish loading — the Transcribe handler
+    # waits for readiness if needed.
     _ensure_timer()
-    await _pause_worker()
+    await _arm()
+    await _ensure_whisper_up(wait=False)
 
 
 def create_simple_stt_tab(config: Config) -> None:
-    async def transcribe(file_path: str | None, request: gr.Request):
+    async def transcribe(recorded: str | None, uploaded: str | None, request: gr.Request):
+        global _inflight
+        # Prefer an uploaded file (the gr.File picker is unrestricted so iOS lets
+        # you choose .m4a etc.), else the recorder.
+        file_path = uploaded or recorded
         if not file_path:
             yield "No audio provided — record or upload a file first."
             return
-        # Keep the worker paused and push the resume timer out while we work.
-        await _pause_worker()
-        yield "⏳ Transcribing on the GPU server… (~30s)"
+        await _arm()
+        async with _state_lock:
+            _inflight += 1
         try:
-            async with httpx.AsyncClient(timeout=httpx.Timeout(GPU_STT_READ_TIMEOUT, connect=10.0)) as client:
-                with Path(file_path).open("rb") as file:  # noqa: ASYNC230
-                    resp = await client.post(
-                        f"{GPU_STT_URL}/transcribe",
-                        files={"audio": (Path(file_path).name, file, "application/octet-stream")},
-                    )
-            if resp.status_code == 409:
-                yield "The GPU server is already transcribing something — wait a moment and try again."
-                return
-            resp.raise_for_status()
-            text = (resp.json() or {}).get("text", "")
-            yield text or "(no speech detected)"
+            if not await _whisper_ready():
+                yield "⏳ Starting whisper-server on the GPU… (first run loads the model)"
+                if not await _ensure_whisper_up(wait=True):
+                    yield "whisper-server didn't come up on the GPU — try again, or check stt-server."
+                    return
+            yield "⏳ Converting audio…"
+            wav = await _to_wav(file_path)
+            try:
+                yield "⏳ Transcribing on the GPU…"
+                async with httpx.AsyncClient(timeout=httpx.Timeout(INFERENCE_TIMEOUT, connect=10.0)) as client:
+                    with Path(wav).open("rb") as file:  # noqa: ASYNC230
+                        resp = await client.post(
+                            f"{WHISPER_URL}/inference",
+                            files={"file": ("audio.wav", file, "audio/wav")},
+                            data={"language": STT_LANGUAGE, "translate": "false", "response_format": "json"},
+                        )
+                resp.raise_for_status()
+                text = (resp.json() or {}).get("text", "").strip()
+                yield text or "(no speech detected)"
+            finally:
+                try:
+                    os.remove(wav)
+                except OSError:
+                    pass
         except Exception as e:
-            logger.exception("GPU STT transcribe error")
+            logger.exception("whisper-server transcribe error")
             yield f"Transcription failed: {e}"
         finally:
-            # The server resumes the worker when /transcribe finishes; pause it
-            # again so it stays down during the session, and reset the timer.
-            await _pause_worker()
+            async with _state_lock:
+                _inflight -= 1
+            await _arm()
 
     with gr.Tab(label="Speech-to-Text"):
         gr.Markdown(
-            "Opening this page pauses the OC worker (shared GPU) so transcription runs fast; "
-            f"it resumes automatically after {int(QWEN_IDLE_RESTART_SECONDS // 60)} min "
+            "Opening this page hands the shared GPU to whisper-server (pausing the OC worker); "
+            f"it's returned to the worker after {int(QWEN_IDLE_RESTART_SECONDS // 60)} min "
             "with no transcriptions."
         )
-        audio = gr.Audio(type="filepath", label="Audio — record or upload")
+        audio = gr.Audio(type="filepath", label="Record audio")
+        # Unrestricted picker (no file_types/accept filter) so iOS Safari offers
+        # .m4a recordings — the gr.Audio uploader filters them out. ffmpeg on the
+        # server decodes whatever lands here (m4a/mp3/wav/ogg/webm/…).
+        upload = gr.File(label="…or upload a file (iPhone .m4a, mp3, wav, …)", file_count="single", type="filepath")
         button = gr.Button("Transcribe", variant="primary")
         output = gr.Textbox(label="Transcript", lines=8, show_copy_button=True)
-        button.click(transcribe, inputs=[audio], outputs=output)
+        button.click(transcribe, inputs=[audio, upload], outputs=output)
 
 
 def create_gradio_demo(config: Config) -> gr.Blocks:

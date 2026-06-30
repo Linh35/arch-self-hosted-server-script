@@ -442,17 +442,25 @@ Setup:
    ```
    (`response_format` also accepts `json`, `srt`, `vtt`.)
 
-**Web UI → GPU server.** The UI's *Transcribe* button does **not** use this box's
-slow CPU model — it proxies to a separate **GPU STT server** (`GPU_STT_URL`,
-default `https://stt-server.example.com`) running Whisper **large-v3** on a ROCm
-GPU (`POST /transcribe`, field `audio` → `{"text": …}`). That GPU is shared with
-an LLM (the "OC worker" / Qwen) and can't host both at once, so the UI
-coordinates it: opening the page pauses the worker (`POST /qwen/stop`), each
-transcription keeps it paused and resets a timer, and after
-`QWEN_IDLE_RESTART_SECONDS` (default 900 = 15 min) with no activity the worker is
-resumed (`POST /qwen/start`). All worker control is best-effort and never blocks
-a transcription. The CPU model + `/v1` API remain for direct callers (the iPhone
-Shortcut below).
+**Web UI → GPU whisper-server.** The UI's *Transcribe* button does **not** use
+this box's slow CPU model — it proxies to a separate **GPU whisper-server**
+(whisper.cpp, Whisper **large-v3** on a ROCm GPU) at `WHISPER_INFERENCE_URL`
+(default `https://whisper.example.com`): `POST /inference`, field `file`,
+`language=$STT_LANGUAGE` + `translate=false` (Bulgarian transcription, not English
+translation) → `{"text": …}`. That endpoint only accepts **WAV**, so the UI
+transcodes the upload/recording to 16 kHz mono WAV with ffmpeg first — which is
+why an iPhone `.m4a` works (the web UI also adds a no-filter file picker so iOS
+Safari actually lets you choose `.m4a`).
+
+That GPU is shared with an LLM (the "OC worker" / Qwen) and can't host both at
+once. `stt-server.example.com` exposes the swap over HTTP (no systemctl):
+`POST /qwen/stop` stops Qwen and starts whisper-server; `POST /qwen/start` gives
+the GPU back. So the UI: pre-warms whisper-server on page load, waits for it to
+be ready before transcribing (resetting an idle timer each time), and after
+`QWEN_IDLE_RESTART_SECONDS` (default 900 = 15 min) idle hands the GPU back to
+Qwen. The idle timer never fires mid-transcription; all worker control is
+best-effort. The container's CPU model + `/v1` API remain for direct callers (the
+iPhone Shortcut below).
 
 **iPhone Shortcut (record → Bulgarian text):** new Shortcut → *Record Audio* →
 *Get Contents of URL* with Method `POST`, URL

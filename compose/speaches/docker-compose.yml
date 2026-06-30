@@ -56,13 +56,18 @@ services:
       # (httpx.ReadError, surfaced in the UI as a failure). Pin the UI's internal
       # client to the container's own listener so it never leaves the box.
       - LOOPBACK_HOST_URL=http://localhost:8000
-      # The custom STT tab proxies transcription to the GPU server (Whisper
-      # large-v3 on ROCm) instead of this container's CPU model. The GPU is
-      # shared with an LLM ("OC worker" / Qwen) that can't co-reside, so the UI
-      # pauses it on page load + while transcribing and resumes it after an idle
-      # period. (The container's own /v1 API still uses the local CPU model.)
+      # The custom STT tab proxies transcription to the GPU whisper-server
+      # (whisper.cpp, large-v3 on ROCm) instead of this container's CPU model:
+      # POST $WHISPER_INFERENCE_URL/inference, language=$STT_LANGUAGE,
+      # translate=false. That GPU is shared with an LLM ("OC worker" / Qwen) that
+      # can't co-reside, controlled via stt-server's HTTP endpoints: /qwen/stop
+      # starts whisper-server, /qwen/start gives the GPU back. The UI pre-warms on
+      # page load, waits for readiness before transcribing, and hands back after
+      # an idle window. (The container's own /v1 API still uses the local CPU model.)
+      - WHISPER_INFERENCE_URL=${WHISPER_INFERENCE_URL:-https://whisper.example.com}
       - GPU_STT_URL=${GPU_STT_URL:-https://stt-server.example.com}
-      - GPU_STT_READ_TIMEOUT=${GPU_STT_READ_TIMEOUT:-300}
+      - STT_LANGUAGE=${STT_LANGUAGE:-bg}
+      - WHISPER_READY_TIMEOUT=${WHISPER_READY_TIMEOUT:-180}
       - QWEN_IDLE_RESTART_SECONDS=${QWEN_IDLE_RESTART_SECONDS:-900}
       - TZ=${TZ:-UTC}
     healthcheck:
