@@ -157,7 +157,7 @@ def create_simple_stt_tab(config: Config) -> None:
     async def transcribe(file_path: str | None, request: gr.Request):
         global _inflight
         if not file_path:
-            yield "No audio provided — record or upload a file first."
+            yield "No audio — pick a file or record first."
             return
         await _arm()
         async with _state_lock:
@@ -225,16 +225,21 @@ def create_simple_stt_tab(config: Config) -> None:
             f"it's returned to the worker after {int(QWEN_IDLE_RESTART_SECONDS // 60)} min "
             "with no transcriptions."
         )
-        audio = gr.Audio(type="filepath", label="Record audio")
-        button = gr.Button("Transcribe recording", variant="primary")
-        # Native upload button (no file_types filter) — opens the iOS system file
-        # picker directly, which is more reliable on mobile Safari than gr.Audio's
-        # uploader (filters out .m4a) or gr.File's drop-zone. Picking a file starts
-        # transcription immediately. ffmpeg on the server decodes whatever it is.
-        upload = gr.UploadButton("📁 Upload a file (iPhone .m4a, mp3, wav, …)", file_count="single", type="filepath")
+        # Stateless: each source auto-transcribes on its own event, carrying its
+        # own file — so there's no separate button to mis-tap and nothing to read
+        # from session state. File picking on iOS uses the native UploadButton
+        # (no file_types filter) because gr.Audio's uploader and gr.File's
+        # drop-zone won't offer .m4a in mobile Safari. ffmpeg decodes whatever
+        # lands (m4a/mp3/wav/ogg/webm/…).
+        upload = gr.UploadButton(
+            "📁 Choose a file (iPhone .m4a, mp3, wav, …) — transcribes on pick",
+            file_count="single", type="filepath",
+        )
+        audio = gr.Audio(sources=["microphone"], type="filepath", label="…or record (transcribes when you stop)")
         output = gr.Textbox(label="Transcript", lines=8, show_copy_button=True)
-        button.click(transcribe, inputs=[audio], outputs=output)
+
         upload.upload(transcribe, inputs=[upload], outputs=output)
+        audio.stop_recording(transcribe, inputs=[audio], outputs=output)
 
 
 def create_gradio_demo(config: Config) -> gr.Blocks:
