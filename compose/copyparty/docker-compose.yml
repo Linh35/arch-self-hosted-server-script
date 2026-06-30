@@ -18,6 +18,15 @@ services:
       - -e2dsa
       - -e2ts
       - --daw
+      - --ui-filesz
+      - "3"
+      # Behind Caddy (rootless podman net): trust the reverse proxy so copyparty
+      # honours its X-Forwarded-Proto/Host (https + files.<domain>). Without this
+      # copyparty distrusts the proxy, falls back to http, and its origin stops
+      # matching the browser's https origin — blocking uploads / mkdir with CORS
+      # errors and disabling features "as a safety measure".
+      - --xff-src
+      - lan
       # No accounts: anonymous gets full read/write/move/delete/admin. This stack
       # is LAN + WARP-tunnel only, so the network perimeter is the access control.
       - -v
