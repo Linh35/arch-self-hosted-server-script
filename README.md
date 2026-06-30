@@ -39,6 +39,7 @@ Trust org — so the tunnel acts as a VPN, not a public front door.
 | MiniQR           | 8092    | `qr.<domain>`        | LAN / WARP tunnel         |
 | Stash            | 9999    | `stash.<domain>`     | LAN / WARP tunnel         |
 | Supabase (Kong)  | 8200    | `supabase.<domain>`  | LAN / WARP tunnel         |
+| Speaches (STT)   | 8093    | `stt.<domain>`       | LAN / WARP tunnel         |
 
 Caddy puts a clean name and HTTPS in front of each service, so you reach
 them at `https://music.<domain>` instead of `http://<server-ip>:4533`. The
@@ -396,6 +397,64 @@ Setup:
    `compose/supabase/` notes); set `SUPABASE_URL` / `SUPABASE_ANON_KEY` /
    `USER_ID` in `compose/stash/web/config.js`. Single-user mode relaxes RLS so
    the anon key works behind the perimeter — there's no login.
+
+### Speech-to-text (Speaches)
+
+`compose/speaches` runs **Speaches** — a self-hosted, OpenAI-compatible
+speech-to-text server (engine: faster-whisper / CTranslate2) with a built-in
+Gradio web UI. This box has no GPU, so it runs the `-cpu` image with **int8**
+quantisation. Bulgarian (and ~99 other languages) work out of the box; the
+default model is **faster-whisper medium** — good Bulgarian accuracy, slower
+than real-time on this 4-core CPU, so it's best for upload/batch jobs rather
+than live dictation. Single host port (`8093`); Caddy fronts it at
+`stt.<domain>` with raised proxy timeouts (a long clip can take minutes on CPU).
+
+Why Speaches over a pure web app (Whishper, etc.): the **OpenAI-compatible API**
+makes it usable from an **iPhone** without any app — an Apple Shortcut can record
+audio and POST it straight to the endpoint, and you still get the web UI in
+Safari.
+
+Setup:
+
+1. `cp compose/speaches/.env.example compose/speaches/.env`, set `DOMAIN`
+   (optionally change `WHISPER_MODEL` — `small` is ~real-time, `large-v3` is most
+   accurate but slow).
+2. Add an `stt.<domain>` DNS record (like the other names — see below) and
+   `./scripts/manage.sh up`.
+3. **Install the model once** (this image doesn't lazy-download — a transcription
+   before the model is installed returns *"not installed locally"*). One-time,
+   ~1.5 GB; the slash in the id is URL-encoded:
+   ```sh
+   curl -X POST http://<server-ip>:8093/v1/models/Systran%2Ffaster-whisper-medium
+   ```
+   It persists under `$STORAGE_ROOT/speaches`, and `WHISPER__TTL=-1` (set in the
+   compose) keeps it resident in RAM between requests. List installed models with
+   `curl http://<server-ip>:8093/v1/models`.
+4. Open `https://stt.<domain>/` for the web UI — a trimmed build (see
+   `compose/speaches/ui/app.py`): **Speech-to-Text** first (just record/upload →
+   Transcribe → text, with the model and language fixed via `STT_UI_MODEL` /
+   `STT_LANGUAGE` so there are no broken selectors), **Text-to-Speech** second,
+   and the stock "Audio Chat" tab removed. Or hit the API directly:
+   ```sh
+   curl -F file=@recording.m4a \
+        -F model=Systran/faster-whisper-medium \
+        -F language=bg -F response_format=text \
+        https://stt.<domain>/v1/audio/transcriptions
+   ```
+   (`response_format` also accepts `json`, `srt`, `vtt`.)
+
+**iPhone Shortcut (record → Bulgarian text):** new Shortcut → *Record Audio* →
+*Get Contents of URL* with Method `POST`, URL
+`https://stt.<domain>/v1/audio/transcriptions`, Request Body *Form*, fields
+`file` = the recording, `model` = `Systran/faster-whisper-medium`, `language` =
+`bg`, `response_format` = `text` → then *Copy to Clipboard* / *Show Result* /
+*Share*. Add it to the Share Sheet or run it with Siri. Over WARP it reaches the
+same `stt.<domain>` with the publicly-trusted cert, so no profile or root CA is
+needed on the phone.
+
+Note: the in-container app runs as `ubuntu` (uid 1000), so the model-cache bind
+mount uses podman's `:U` option to chown it to the mapped host subuid — without
+that, the download fails with a permission error under rootless podman.
 
 ### Reverse proxy (Caddy)
 

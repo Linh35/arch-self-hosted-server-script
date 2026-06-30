@@ -185,3 +185,17 @@ supabase.{$DOMAIN} {
 	import site
 	reverse_proxy {$UPSTREAM_HOST}:8200   # Supabase (Kong gateway)
 }
+
+# --- Speech-to-text -------------------------------------------------------
+# Speaches: OpenAI-compatible STT API (/v1/audio/transcriptions) + Gradio web UI
+# at /. A long recording transcribed on CPU can take minutes, so raise the proxy
+# timeouts past the default read/write window or the response gets cut off.
+stt.{$DOMAIN} {
+	import site
+	reverse_proxy {$UPSTREAM_HOST}:8093 {  # Speaches
+		transport http {
+			read_timeout 30m
+			write_timeout 30m
+		}
+	}
+}
