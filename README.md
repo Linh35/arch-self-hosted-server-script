@@ -431,10 +431,9 @@ Setup:
    compose) keeps it resident in RAM between requests. List installed models with
    `curl http://<server-ip>:8093/v1/models`.
 4. Open `https://stt.<domain>/` for the web UI — a trimmed build (see
-   `compose/speaches/ui/app.py`): **Speech-to-Text** first (just record/upload →
-   Transcribe → text, with the model and language fixed via `STT_UI_MODEL` /
-   `STT_LANGUAGE` so there are no broken selectors), **Text-to-Speech** second,
-   and the stock "Audio Chat" tab removed. Or hit the API directly:
+   `compose/speaches/ui/app.py`): **Speech-to-Text** first (record/upload →
+   Transcribe → text), **Text-to-Speech** second, and the stock "Audio Chat" tab
+   removed. The container's own API still uses CPU faster-whisper, e.g.:
    ```sh
    curl -F file=@recording.m4a \
         -F model=Systran/faster-whisper-medium \
@@ -442,6 +441,18 @@ Setup:
         https://stt.<domain>/v1/audio/transcriptions
    ```
    (`response_format` also accepts `json`, `srt`, `vtt`.)
+
+**Web UI → GPU server.** The UI's *Transcribe* button does **not** use this box's
+slow CPU model — it proxies to a separate **GPU STT server** (`GPU_STT_URL`,
+default `https://stt-server.example.com`) running Whisper **large-v3** on a ROCm
+GPU (`POST /transcribe`, field `audio` → `{"text": …}`). That GPU is shared with
+an LLM (the "OC worker" / Qwen) and can't host both at once, so the UI
+coordinates it: opening the page pauses the worker (`POST /qwen/stop`), each
+transcription keeps it paused and resets a timer, and after
+`QWEN_IDLE_RESTART_SECONDS` (default 900 = 15 min) with no activity the worker is
+resumed (`POST /qwen/start`). All worker control is best-effort and never blocks
+a transcription. The CPU model + `/v1` API remain for direct callers (the iPhone
+Shortcut below).
 
 **iPhone Shortcut (record → Bulgarian text):** new Shortcut → *Record Audio* →
 *Get Contents of URL* with Method `POST`, URL
