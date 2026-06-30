@@ -163,25 +163,49 @@ def create_simple_stt_tab(config: Config) -> None:
         async with _state_lock:
             _inflight += 1
         try:
+            # Make sure whisper-server has the GPU. Yield a heartbeat every few
+            # seconds while it loads so the mobile connection doesn't go idle and
+            # drop (which showed up as a generic "error" on iOS).
             if not await _whisper_ready():
-                yield "⏳ Starting whisper-server on the GPU… (first run loads the model)"
-                if not await _ensure_whisper_up(wait=True):
-                    yield "whisper-server didn't come up on the GPU — try again, or check stt-server."
-                    return
+                await _qwen("/qwen/stop")  # stops OC worker -> starts whisper-server
+                deadline = time.monotonic() + WHISPER_READY_TIMEOUT
+                waited = 0
+                while not await _whisper_ready():
+                    if time.monotonic() >= deadline:
+                        yield "whisper-server didn't come up on the GPU — wait a moment and try again."
+                        return
+                    yield f"⏳ Starting whisper-server on the GPU… ({waited}s)"
+                    await asyncio.sleep(3)
+                    waited += 3
             yield "⏳ Converting audio…"
             wav = await _to_wav(file_path)
             try:
-                yield "⏳ Transcribing on the GPU…"
-                async with httpx.AsyncClient(timeout=httpx.Timeout(INFERENCE_TIMEOUT, connect=10.0)) as client:
-                    with Path(wav).open("rb") as file:  # noqa: ASYNC230
-                        resp = await client.post(
-                            f"{WHISPER_URL}/inference",
-                            files={"file": ("audio.wav", file, "audio/wav")},
-                            data={"language": STT_LANGUAGE, "translate": "false", "response_format": "json"},
-                        )
-                resp.raise_for_status()
-                text = (resp.json() or {}).get("text", "").strip()
-                yield text or "(no speech detected)"
+                # Up to two attempts: whisper-server can briefly 502 if the GPU
+                # swap is still settling. Re-ensure and retry once.
+                for attempt in range(2):
+                    try:
+                        yield "⏳ Transcribing on the GPU…"
+                        async with httpx.AsyncClient(timeout=httpx.Timeout(INFERENCE_TIMEOUT, connect=10.0)) as client:
+                            with Path(wav).open("rb") as file:  # noqa: ASYNC230
+                                resp = await client.post(
+                                    f"{WHISPER_URL}/inference",
+                                    files={"file": ("audio.wav", file, "audio/wav")},
+                                    data={"language": STT_LANGUAGE, "translate": "false", "response_format": "json"},
+                                )
+                        resp.raise_for_status()
+                        text = (resp.json() or {}).get("text", "").strip()
+                        yield text or "(no speech detected)"
+                        break
+                    except Exception:
+                        if attempt == 1:
+                            raise
+                        logger.warning("whisper /inference failed; re-warming and retrying")
+                        yield "⏳ whisper-server hiccuped — restarting it and retrying…"
+                        await _qwen("/qwen/stop")
+                        d = time.monotonic() + WHISPER_READY_TIMEOUT
+                        while not await _whisper_ready() and time.monotonic() < d:
+                            yield "⏳ Starting whisper-server on the GPU…"
+                            await asyncio.sleep(3)
             finally:
                 try:
                     os.remove(wav)
