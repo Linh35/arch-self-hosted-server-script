@@ -154,11 +154,8 @@ async def on_load() -> None:
 
 
 def create_simple_stt_tab(config: Config) -> None:
-    async def transcribe(recorded: str | None, uploaded: str | None, request: gr.Request):
+    async def transcribe(file_path: str | None, request: gr.Request):
         global _inflight
-        # Prefer an uploaded file (the gr.File picker is unrestricted so iOS lets
-        # you choose .m4a etc.), else the recorder.
-        file_path = uploaded or recorded
         if not file_path:
             yield "No audio provided — record or upload a file first."
             return
@@ -205,13 +202,15 @@ def create_simple_stt_tab(config: Config) -> None:
             "with no transcriptions."
         )
         audio = gr.Audio(type="filepath", label="Record audio")
-        # Unrestricted picker (no file_types/accept filter) so iOS Safari offers
-        # .m4a recordings — the gr.Audio uploader filters them out. ffmpeg on the
-        # server decodes whatever lands here (m4a/mp3/wav/ogg/webm/…).
-        upload = gr.File(label="…or upload a file (iPhone .m4a, mp3, wav, …)", file_count="single", type="filepath")
-        button = gr.Button("Transcribe", variant="primary")
+        button = gr.Button("Transcribe recording", variant="primary")
+        # Native upload button (no file_types filter) — opens the iOS system file
+        # picker directly, which is more reliable on mobile Safari than gr.Audio's
+        # uploader (filters out .m4a) or gr.File's drop-zone. Picking a file starts
+        # transcription immediately. ffmpeg on the server decodes whatever it is.
+        upload = gr.UploadButton("📁 Upload a file (iPhone .m4a, mp3, wav, …)", file_count="single", type="filepath")
         output = gr.Textbox(label="Transcript", lines=8, show_copy_button=True)
-        button.click(transcribe, inputs=[audio, upload], outputs=output)
+        button.click(transcribe, inputs=[audio], outputs=output)
+        upload.upload(transcribe, inputs=[upload], outputs=output)
 
 
 def create_gradio_demo(config: Config) -> gr.Blocks:
